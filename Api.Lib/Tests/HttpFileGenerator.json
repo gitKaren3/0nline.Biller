@@ -1,0 +1,7 @@
+{
+  "InputDir": "../../DL.Contract/Interfaces",
+  "Namespace": "_0nline.Biller.Api.Lib",
+  "EntityDir": "../../DL.Contract/Models/db/Generated",
+  "BaseUrl": "https://localhost:7053/api",
+  "App": "Biller"
+}

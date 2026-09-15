@@ -1,0 +1,290 @@
+﻿<#@ template language="C#" debug="true" hostspecific="true" #>
+<#@ assembly name="System.Data" #>
+<#@ assembly name="System.Data.Common" #>
+<#@ assembly name="Microsoft.Data.SqlClient" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.Data" #>
+<#@ import namespace="Microsoft.Data.SqlClient" #>
+<#@ import namespace="System.IO" #>
+<#@ assembly name="System.Memory" #>
+<#@ assembly name="System.Text.Json" #>
+<#@ import namespace="System.Text.Json" #> 
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Collections.Generic" #>
+
+<#
+
+// Get the directory where the .tt file lives
+string baseDir = Path.GetDirectoryName(Host.TemplateFile);
+
+string configPath = Path.Combine(baseDir, "DB Model Generator.json");
+var configJson = File.ReadAllText(configPath);
+var config = JsonSerializer.Deserialize<Dictionary<string,string>>(configJson);
+
+string outputDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Host.TemplateFile), config["OutputDir"]));
+Directory.CreateDirectory(outputDir);
+
+string ns = config["Namespace"];
+string connectionString = config["ConnectionString"];
+string scope = config["Scope"];
+bool Depluralize = Convert.ToBoolean(config["Depluralize"]);
+bool addValidationAnnotations = Convert.ToBoolean(config["IncludeAnnotations"]);  //for Blazor
+
+using (var conn = new SqlConnection(connectionString))
+{
+    conn.Open();
+    var schema = conn.GetSchema("Tables");
+
+    foreach (DataRow row in schema.Rows)
+    {
+        string tableName = row["TABLE_NAME"].ToString();
+        string className = GetClassName(tableName);
+        string tableSchema = row["TABLE_SCHEMA"].ToString();
+
+        // Skip system tables
+        if (tableSchema == "sys" || tableName.Equals("sysdiagrams", StringComparison.OrdinalIgnoreCase))
+            continue;
+
+        // Collect Table Info //////////////////////////////////////////////////////////////////
+        // Collect PK columns for this table
+        var pkColumns = new HashSet<string>();
+
+        using (var cmd = new SqlCommand(
+            @"SELECT COLUMN_NAME 
+              FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+              WHERE OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + CONSTRAINT_NAME), 'IsPrimaryKey') = 1
+              AND TABLE_NAME = @table ORDER BY ORDINAL_POSITION", conn))
+        {
+            cmd.Parameters.AddWithValue("@table", tableName);
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    pkColumns.Add(reader.GetString(0));
+                }
+            }
+        }
+
+        // Collect Identity Columns
+        var identityColumns = new HashSet<string>();
+        using (var cmd = new SqlCommand(@"
+            SELECT c.name
+            FROM sys.columns c
+            JOIN sys.tables t ON c.object_id = t.object_id
+            JOIN sys.schemas s ON t.schema_id = s.schema_id
+            WHERE t.name = @table AND s.name = @schema AND c.is_identity = 1", conn))
+        {
+            cmd.Parameters.AddWithValue("@table", tableName);
+            cmd.Parameters.AddWithValue("@schema", tableSchema);
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    identityColumns.Add(reader.GetString(0));
+                }
+            }
+        }
+
+
+        // Collect FK columns for this table
+        var fkMap = new Dictionary<string, (string pkTable, string pkColumn)>();
+
+        using (var cmd = new SqlCommand(@"
+            SELECT fk.COLUMN_NAME, pk.TABLE_NAME AS PK_TABLE, pk.COLUMN_NAME AS PK_COLUMN
+            FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+            JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE fk 
+                ON rc.CONSTRAINT_NAME = fk.CONSTRAINT_NAME
+            JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE pk 
+                ON rc.UNIQUE_CONSTRAINT_NAME = pk.CONSTRAINT_NAME
+            WHERE fk.TABLE_NAME = @table
+            ORDER BY fk.ORDINAL_POSITION", conn))
+        {
+            cmd.Parameters.AddWithValue("@table", tableName);
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    string fkCol = reader.GetString(0);
+                    string pkTable = reader.GetString(1);
+                    string pkCol = reader.GetString(2);
+                    fkMap[fkCol] = (pkTable, pkCol);
+                }
+            }
+        }
+
+        var computedColumns = new HashSet<string>();
+        using (var cmd = new SqlCommand(@"
+            SELECT c.name
+            FROM sys.columns c
+            JOIN sys.tables t ON c.object_id = t.object_id
+            JOIN sys.schemas s ON t.schema_id = s.schema_id
+            WHERE t.name = @table AND s.name = @schema AND c.is_computed = 1", conn))
+        {
+            cmd.Parameters.AddWithValue("@table", tableName);
+            cmd.Parameters.AddWithValue("@schema", tableSchema);
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    computedColumns.Add(reader.GetString(0));
+                }
+            }
+        }
+
+        // Build class code /////////////////////////////////////////////////////////////////////////////
+        var classCode = new System.Text.StringBuilder();
+        var appendClassCode = new System.Text.StringBuilder();
+        classCode.AppendLine("using System;");
+        classCode.AppendLine("using System.ComponentModel.DataAnnotations;");
+        classCode.AppendLine("using System.ComponentModel.DataAnnotations.Schema;");    
+        classCode.AppendLine();
+        classCode.AppendLine($"namespace {ns}");
+        classCode.AppendLine("{");
+        classCode.AppendLine($"    {scope} partial class {className}");
+        classCode.AppendLine("    {");
+
+        var columns = conn.GetSchema("Columns", new string[] { null, null, tableName });
+
+        // Create a DataView and sort by ORDINAL_POSITION
+        var columnsview = new DataView(columns)
+        {
+            Sort = "ORDINAL_POSITION ASC"
+        };
+
+        foreach (DataRowView item in columnsview)
+        {
+            var col = item.Row;
+
+            string colName = col["COLUMN_NAME"].ToString();
+            string dataType = MapSqlType(col["DATA_TYPE"].ToString());
+            bool isRequired = col["IS_NULLABLE"].ToString() == "NO";
+            bool isPK = pkColumns.Contains(colName);
+            bool hasDefault = !string.IsNullOrEmpty(col["COLUMN_DEFAULT"].ToString());
+
+            bool isNullable = (addValidationAnnotations && !isPK) || hasDefault || !isRequired;
+
+            string nullableMarker = isNullable  ? "?" : "";
+            
+
+            // Annotations
+            if (isPK)
+                classCode.AppendLine("        [Key]");
+
+            if (identityColumns.Contains(colName))
+                classCode.AppendLine("        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]");
+            else if (computedColumns.Contains(colName))
+            {
+                classCode.AppendLine("        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]");
+                classCode.AppendLine("        [Editable(false)]");
+            }
+            else if (hasDefault)
+            {
+                classCode.AppendLine("        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]");
+            }
+
+
+            if (fkMap.ContainsKey(colName))
+            {
+                var fkInfo = fkMap[colName];
+                string fkClass = GetClassName(fkInfo.pkTable);
+                string fkNavPropName = colName.EndsWith("ID", StringComparison.OrdinalIgnoreCase)
+                                        ? colName.Substring(0, colName.Length - 2)
+                                        : colName + fkClass;
+                classCode.AppendLine($"        [ForeignKey(\"{fkNavPropName}\")]");
+                appendClassCode.AppendLine($"        public {fkClass}? {fkNavPropName} {{ get; set; }} ");
+            }
+
+
+            if (addValidationAnnotations)
+            {
+                if (isRequired && !isPK && !hasDefault)
+                    classCode.AppendLine("        [Required(ErrorMessage = \"Required\")]");
+
+                if (dataType == "string" && col.Table.Columns.Contains("CHARACTER_MAXIMUM_LENGTH"))
+                {
+                    object maxLenObj = col["CHARACTER_MAXIMUM_LENGTH"];
+                    if (maxLenObj != DBNull.Value && Convert.ToInt32(maxLenObj) > 0)
+                    {
+                        int maxLen = Convert.ToInt32(maxLenObj);
+                        classCode.AppendLine($"        [StringLength({maxLen}, ErrorMessage = \"Max {maxLen} characters\")]");
+                    }
+                }
+            
+                if (colName.IndexOf("Email", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    classCode.AppendLine("        [EmailAddress(ErrorMessage = \"Invalid email address\")]");
+                }
+            }
+
+            // Properties
+            string propertyLine = $"        public {dataType}{nullableMarker} {colName} {{ get; set; }}";
+
+            if (!isNullable)
+            {
+                switch (dataType)
+                {
+                    case "string": propertyLine += " = string.Empty;"; break;
+                    case "DateTime": propertyLine += " = DateTime.MinValue;"; break;
+                    case "decimal": propertyLine += " = 0m;"; break;
+                    case "int": propertyLine += " = 0;"; break;
+                    case "long": propertyLine += " = 0L;"; break;
+                    case "byte": propertyLine += " = 0;"; break;
+                    case "Guid": propertyLine += " = Guid.Empty;"; break;
+                }
+            }
+
+            classCode.AppendLine(propertyLine);
+            classCode.AppendLine();
+        }
+        
+        classCode.AppendLine("        // Navigation properties");
+        classCode.AppendLine(appendClassCode.ToString());
+
+        classCode.AppendLine("    }");    //class
+        classCode.AppendLine("}");      //namespace
+
+        // Write each class to its own file
+ 
+        // Build the output path for each class
+        string outputPath = Path.Combine(outputDir, $"{className}.cs");
+
+        // Write the file
+        File.WriteAllText(outputPath, classCode.ToString());
+
+    }
+}
+
+string GetClassName(string tableName)
+{
+    if (Depluralize)
+        // crude singularization
+        if (tableName.EndsWith("ies"))
+            return tableName.Substring(0, tableName.Length - 3) + "y";
+        else if (tableName.EndsWith("s"))
+            return tableName.Substring(0, tableName.Length - 1);
+    
+    return tableName;
+}
+
+string MapSqlType(string sqlType)
+{
+    switch (sqlType)
+    {
+        case "bit": return "bool";
+        case "tinyint": return "byte";
+        case "int": return "int";
+        case "bigint": return "long";
+        case "nvarchar": return "string";
+        case "varchar": return "string";
+        case "datetime": return "DateTime";  
+        case "date": return "DateTime";
+        case "smalldatetime": return "DateTime";
+        case "decimal": return "decimal";
+        case "money": return "decimal";
+        case "float": return "double";
+        case "uniqueidentifier": return "Guid"; 
+        case "datetimeoffset": return "DateTimeOffset";
+        default: return "string";
+    }
+}
+#>

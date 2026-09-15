@@ -1,0 +1,50 @@
+﻿@page "/contacts"
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<LocalResources> Localizer
+@inject IContactService ContactService
+
+
+<AuthorizeView>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+<MudText Typo="Typo.h3">Clients</MudText>
+<MudGrid Class="py-2">
+    @foreach (var item in contacts)
+    {
+        <MudItem xs="12" sm="6" md="4" lg="3">
+            <MudCard Class="pa-4 mx-auto">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">@item.Value</MudText>
+                    <MudText Typo="Typo.subtitle2">Contact ID: @item.Key</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    }
+    @if (contacts.Count == 0)
+    {
+        <MudItem> The list is empty. </MudItem>
+    }
+ </MudGrid>
+
+
+@code {
+
+    IDictionary<int, string> contacts = new Dictionary<int, string>();
+
+    private bool _isBusy = false;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await ContactService.GetLookupAsync();
+        if (result.Successful && result.Value != null)
+        {
+            contacts = result.Value;
+        }
+    }
+
+}

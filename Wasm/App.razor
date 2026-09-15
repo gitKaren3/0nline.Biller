@@ -1,0 +1,55 @@
+﻿@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+ <CascadingAuthenticationState>
+    <ErrorBoundary @ref="globalErrorBoundary" >
+        <ErrorContent Context="ex">
+            <LayoutView Layout="@typeof(Layout.MainLayout)">
+                <PageTitle>Error</PageTitle>
+                <MudContainer MaxWidth="MaxWidth.Small" Class="mx-auto my-2">
+                    <_0nline.Shared.Client.Components.Error Exception="@ex"
+                        Message ="@ex.Message"
+                        RequestId="@RequestId" /> 
+                   
+                </MudContainer>
+            </LayoutView>
+        </ErrorContent>
+        <ChildContent>
+            <Router AppAssembly="@typeof(App).Assembly">
+                <Found Context="routeData">
+                    <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <LayoutView Layout="@typeof(MainLayout)">
+                            Please <a href="/login">log in</a> to continue.               
+                        </LayoutView>
+                    </NotAuthorized>
+                    </AuthorizeRouteView>
+                    <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+                </Found>
+
+                <NotFound>
+                    <PageTitle>Not found</PageTitle>
+                    <LayoutView Layout="@typeof(MainLayout)">
+                        <p role="alert">Sorry, there's nothing at this address.</p>
+                    </LayoutView>
+                </NotFound>
+            </Router>
+        </ChildContent>
+    </ErrorBoundary>
+</CascadingAuthenticationState>
+
+
+@code {
+    private ErrorBoundary? globalErrorBoundary;
+    string RequestId { get; set; } = Guid.NewGuid().ToString();
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += (_, __) =>
+        {
+            globalErrorBoundary?.Recover();
+        };
+    }
+
+}
+

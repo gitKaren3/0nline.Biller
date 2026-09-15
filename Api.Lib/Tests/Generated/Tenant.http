@@ -1,0 +1,37 @@
+### Get Tenant by ID
+GET https://localhost:5001/api/biller/tenant/1
+
+### Create Tenant
+POST https://localhost:5001/api/biller/tenant
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "UserId": "Sample",
+  "TierID": "Sample",
+  "ContactID": 0,
+  "CompanyID": 0,
+  "Active": "Sample",
+  "Tier": "Sample",
+  "Contact": "Sample",
+  "Company": "Sample"
+}
+
+### Update Tenant
+PUT https://localhost:5001/api/biller/tenant
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "UserId": "Sample",
+  "TierID": "Sample",
+  "ContactID": 0,
+  "CompanyID": 0,
+  "Active": "Sample",
+  "Tier": "Sample",
+  "Contact": "Sample",
+  "Company": "Sample"
+}
+
+### Delete Tenant
+DELETE https://localhost:5001/api/biller/tenant/1

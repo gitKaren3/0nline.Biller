@@ -1,0 +1,65 @@
+﻿@page "/register"
+@inject NavigationManager Nav
+@inject IStringLocalizer<LocalResources> Localizer
+@using _0nline.Shared.Client.Components
+@inject ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Register</PageTitle>
+
+@if (!verificationLinkSent)
+{
+    <MudContainer Class="my-2" MaxWidth="MaxWidth.Small">
+        <Register 
+            OnLoggedIn="onLoggedIn"
+            OnLoginRedirect="onLoginRedirect"
+            OnVerificationLinkSent="onVerificationLinkSent"
+            onCancel="onCancel"
+            SupportUrl="support?Subject=Help with Registration&returnUrl=register" />
+    </MudContainer>
+}
+else
+{
+    <MudContainer Class="my-2" MaxWidth="MaxWidth.Medium">
+        <VerificationLinkSent OnTryAgain="onVerificationTryAgain" />
+    </MudContainer>
+}
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private bool verificationLinkSent = false;
+    private string? _token;
+
+    private void onLoggedIn(string token)
+    {
+        _token = token;
+        StateHasChanged();
+    }
+
+    private void onLoginRedirect(_0nline.Auth.Contract.LoginRequest request)
+    {
+        var message = Localizer["This account already exists"];
+        
+        Nav.NavigateTo($"login?message={message}&email=" + request.Username);
+    }
+
+    private void onVerificationLinkSent()
+    {
+        verificationLinkSent = true;
+        StateHasChanged();
+    }
+
+    private void onVerificationTryAgain()
+    {
+        verificationLinkSent = false;
+        StateHasChanged();
+    }
+
+    private void onCancel()
+    {
+        Nav.NavigateTo(ReturnUrl ?? "");
+    }
+}

@@ -1,0 +1,8 @@
+{
+  "OutputDir": "..\\0nline.Biller.DL.Contract\\Models\\db\\Generated",
+  "Namespace": "_0nline.Biller.DL.Contract.Models.db",
+  "ConnectionString": "Server=.\\SQL2019;Database=0nline.Biller;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True;",
+  "Scope": "public",
+  "IncludeAnnotations": "true",
+  "Depluralize": "false"
+}

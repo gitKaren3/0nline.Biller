@@ -1,0 +1,12 @@
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\bin\Debug\net8.0\Biller.DL.Contract.deps.json
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\bin\Debug\net8.0\Biller.DL.Contract.dll
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\bin\Debug\net8.0\Biller.DL.Contract.pdb
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\Biller.DL.Contract.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\Biller.DL.Contract.AssemblyInfoInputs.cache
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\Biller.DL.Contract.AssemblyInfo.cs
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\Biller.DL.Contract.csproj.CoreCompileInputs.cache
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\Biller.DL.Contract.sourcelink.json
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\Biller.DL.Contract.dll
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\refint\Biller.DL.Contract.dll
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\Biller.DL.Contract.pdb
+C:\Projects\0nline\Dev\0nline.Biller\Biller.DL.Contract\obj\Debug\net8.0\ref\Biller.DL.Contract.dll

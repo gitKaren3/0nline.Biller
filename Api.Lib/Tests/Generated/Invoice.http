@@ -1,0 +1,45 @@
+### Get Invoice by ID
+GET https://localhost:5001/api/biller/invoice/1
+
+### Get all Invoices
+GET https://localhost:5001/api/biller/invoice
+
+### Lookup Invoices
+GET https://localhost:5001/api/biller/invoice/lookup
+
+### Create Invoice
+POST https://localhost:5001/api/biller/invoice
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "InvoiceNumber": "Sample",
+  "IssuedToContactID": 0,
+  "CompanyID": 0,
+  "InvoiceDate": "Sample",
+  "PaymentRef": "Sample",
+  "InvoiceStatusID": "Sample",
+  "Tenant": "Sample",
+  "IssuedToContact": "Sample"
+}
+
+### Update Invoice
+PUT https://localhost:5001/api/biller/invoice
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "InvoiceNumber": "Sample",
+  "IssuedToContactID": 0,
+  "CompanyID": 0,
+  "InvoiceDate": "Sample",
+  "PaymentRef": "Sample",
+  "InvoiceStatusID": "Sample",
+  "Tenant": "Sample",
+  "IssuedToContact": "Sample"
+}
+
+### Delete Invoice
+DELETE https://localhost:5001/api/biller/invoice/1

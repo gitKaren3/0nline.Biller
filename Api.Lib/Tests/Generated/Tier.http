@@ -1,0 +1,8 @@
+### Get Tier by ID
+GET https://localhost:7053/api/biller/tier/1
+
+### Get all Tiers
+GET https://localhost:7053/api/biller/tier
+
+### Lookup Tiers
+GET https://localhost:7053/api/biller/tier/lookup

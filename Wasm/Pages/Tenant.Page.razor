@@ -1,0 +1,83 @@
+﻿@page "/tenant"
+@using Biller.Wasm.Components
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IStringLocalizer<LocalResources> Localizer
+@inject ITenantService TenantService
+@inject ITierService TierService
+@inject IAuthenticationService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserSession UserSession
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject System.Net.Http.IHttpClientFactory ClientFactory
+
+<AuthorizeView>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+@if (_newregistration)
+{
+    <MudText Typo="Typo.h3" Class="py-3 mb-6">Get Started:</MudText>
+    
+    <TenantRegister OnRegistrationCompleted="onRegistrationCompleted" OnTenantCreated="onTenantCreated" />
+    
+}
+else
+{
+    <TenantProfile OnSaved="OnSaved" />
+}
+
+
+@code {
+
+    private bool _newregistration = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (UserSession.TenantId == 0)
+        {
+            _newregistration = true;
+        }
+    }
+
+
+    private async Task onTenantCreated(Tenant tenant)
+    {
+       
+            var authResult = await AuthService.AddUserSubscriptionAsync(
+                userId: UserSession?.UserId?.ToString()! ,
+                appId: UserSession?.AppId!,
+                tenantId: tenant.ID, 
+                tierId: tenant.TierID
+            );
+
+            if (authResult.IsFailed)
+            {
+                Snackbar.Add($"{authResult.Message}", Severity.Error);
+                return;
+            }
+
+            // 4. Update Token in Local Storage
+            if (!string.IsNullOrEmpty(authResult.Value?.Token))
+            {
+                if (AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
+                {
+                    await jwtProvider.NotifyUserAuthenticationAsync(authResult.Value.Token);
+                }
+            }
+    }
+
+    private async Task onRegistrationCompleted()
+    {
+        Snackbar.Add("Tenant registration completed successfully.", Severity.Success);
+        Nav.NavigateTo("/");
+    }
+
+    private async Task OnSaved()
+    {
+        Snackbar.Add("Tenant profile saved successfully.", Severity.Success);
+    }
+
+}

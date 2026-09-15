@@ -1,0 +1,9 @@
+﻿.mud-navmenu-root .mud-nav-link {
+	padding: 10px 16px;
+	border-radius: 6px;
+}
+
+	.mud-navmenu-root .mud-nav-link.mud-nav-link-active {
+		background: linear-gradient(90deg, rgba(0,123,255,0.12), rgba(0,123,255,0.06));
+		box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+	}

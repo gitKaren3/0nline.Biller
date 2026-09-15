@@ -1,0 +1,39 @@
+﻿@page "/support"
+@inject NavigationManager nav
+@inject ISnackbar SnackBar
+@inject IStringLocalizer<LocalResources> localizer
+@using _0nline.Shared.Client.Components
+
+<PageTitle>Contact Support</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Small" Class="my-2">
+    <ContactForm Email="@Email" Subject="@Subject" OnCancel="OnCancel" OnMessageSent="OnMessageSent" />
+</MudContainer>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "email")]
+    public string? Email { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "subject")]
+    public string? Subject { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private async Task OnCancel()
+    {
+        await Task.CompletedTask;
+        nav.NavigateTo(ReturnUrl ?? "");
+    }
+
+    private async Task OnMessageSent()
+    {
+        SnackBar.Add(localizer["Message Sent"], Severity.Success);
+        await Task.CompletedTask;
+
+        // Optionally redirect after a short delay to let user see success message
+        nav.NavigateTo(ReturnUrl ?? "");
+    }
+}

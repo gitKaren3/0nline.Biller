@@ -1,0 +1,142 @@
+:root {
+    --color-primary: #22bbbb; /* turquoise */
+    --color-secondary: #FF6F61; /* coral */
+    --color-dark: #333333; /* dark gray */
+    --color-dark-contrast: #ffffff; /* white text */
+    --color-tertiary: #A4A4A4; /* light gray */
+}
+
+html {
+    scroll-behavior: smooth; /* Gliding behaviour instead of jumping when moving to anchors */
+}
+
+.body {
+}
+
+.hero {
+    padding: 1rem;
+    text-align: center;
+    background-color:transparent;
+}
+
+    .hero .logo {
+        margin-top: 1rem;
+    }
+
+    .hero .logo-text {
+        letter-spacing: 0.4em;
+        padding-left: 0.8em;
+        line-height: 1.8em;
+        vertical-align: bottom;
+        font-size: 1.3em;
+    }
+
+.content {
+    padding: 1rem;
+    text-align: left;
+    background-color: #fff;
+}
+
+
+footer {
+    text-align: center;
+}
+
+
+
+/* Modern MudBlazor-inspired loading spinner */
+
+@keyframes spin {
+    0% {
+        stroke-dasharray: 1, 150;
+        stroke-dashoffset: 0;
+    }
+
+    50% {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -35;
+    }
+
+    100% {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -124;
+    }
+}
+
+.loading-progress {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 64px;
+    height: 64px;
+    transform: translate(-50%, -50%);
+}
+
+    .loading-progress circle {
+        fill: none;
+        stroke: var(--mud-palette-primary, #1976d2); /* fallback if MudBlazor vars not loaded yet */
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: 0;
+        animation: spin 1.4s ease-in-out infinite;
+    }
+
+
+.loading-progress-text {
+    position: absolute;
+    top: calc(50% + 80px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--mud-palette-text-primary, #444);
+    letter-spacing: 0.05em;
+}
+
+@keyframes bounce {
+    0%, 95%, 100% {
+        transform: translateY(0);
+    }
+
+    97% {
+        transform: translateY(-5px);
+    }
+}
+
+
+.logo-bounce {
+    animation: bounce 11s infinite;
+}
+
+@keyframes pulse {
+    0%, 95%, 100% {
+        transform: scale(1);
+    }
+
+    97% {
+        transform: scale(1.05);
+    }
+}
+
+.logo-pulse {
+    animation: pulse 10s infinite;
+}
+
+.ribbon-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.ribbon {
+    position: absolute;
+    text-align: center;
+    top: 20px;
+    right: -67px;
+    background: var(--color-secondary); /*  Primary color */
+    color: white;
+    padding: 6px 63px;
+    transform: rotate(45deg);
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}

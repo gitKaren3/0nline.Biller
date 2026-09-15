@@ -1,0 +1,59 @@
+﻿@page "/login"
+@inject NavigationManager Nav
+@inject ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserSession UserSession
+
+<PageTitle>Login</PageTitle>
+
+<MudContainer Class="my-4" MaxWidth="MaxWidth.Small">
+    <_0nline.Shared.Client.Components.Login
+        Email="@Email"
+        ReturnUrl="@ReturnUrl"
+        ShowEmailConfirmed="@EmailConfirmed"
+        Message="@Message"
+        SupportUrl="support?Subject=Help with Logging In&returnUrl=login"
+        OnLoginValidated="HandleLoginValidated"
+        onCancel="onCancel" />
+</MudContainer>
+
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "email")]
+    public string? Email { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "emailconfirmed")]
+    public bool? EmailConfirmed { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "message")]
+    public string? Message { get; set; }
+
+
+    private async void HandleLoginValidated(string token)
+    {
+        // notify Blazor of new auth state
+        if (AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
+        {
+            await jwtProvider.NotifyUserAuthenticationAsync(token);
+        }
+
+        if (UserSession.TenantId <= 0)
+            Nav.NavigateTo("/tenant");
+        else
+        // Step 3: redirect
+            Nav.NavigateTo(ReturnUrl ?? "/");
+    }
+
+    private void onCancel()
+    {
+        Nav.NavigateTo(ReturnUrl ?? "");
+    }
+
+}

@@ -1,0 +1,148 @@
+<#@ template debug="true" hostspecific="true" language="C#" #>
+<#@ assembly name="System.Runtime" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+<#@ assembly name="System.Memory" #>
+<#@ assembly name="System.Text.Json" #>
+<#@ import namespace="System.Text.Json" #> 
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".cs" #>
+
+<#
+// Configuration
+string baseDir = Path.GetDirectoryName(Host.TemplateFile);
+string configPath = Path.Combine(baseDir, "_ControllerGenerator.json");
+var configJson = File.ReadAllText(configPath);
+var config = JsonSerializer.Deserialize<Dictionary<string,string>>(configJson);
+
+string targetNamespace = config["Namespace"];
+string interfaceFolderPath = config["InputDir"];
+string App = config["App"];
+string subRoute = App.ToLower();
+string outputDir = baseDir + "\\Generated" ;
+
+if (!Directory.Exists(interfaceFolderPath))
+{
+    throw new Exception($"Interface folder not found: {interfaceFolderPath}");
+}
+
+// BillerBaseController:
+string basecontrollercode = $@"using Microsoft.AspNetCore.Mvc;
+using _0nline.Shared.Contract.Interfaces.DL;
+
+/// This is auto-generated from a template - do not modify.
+namespace {targetNamespace}
+{{
+    [ApiController]
+    [Route(""api/{subRoute}/[controller]"")]
+    public abstract class {App}BaseController<T, TKey> : ControllerBase where T : class
+    {{
+            protected virtual IDLBaseService<T> DbService {{ get; }}
+
+            public {App}BaseController(IDLBaseService<T> baseService) {{
+                    DbService = baseService;
+            }}
+
+            [HttpGet(""{{id}}"")]
+            public virtual async Task<IActionResult> GetById(int id) {{
+                var result = await DbService.GetOneAsync(id);
+                return Ok(result);
+            }}
+        }}
+    }}
+";
+
+string outputFile = Path.Combine(outputDir, $"{App}BaseController.cs");
+File.WriteAllText(outputFile, basecontrollercode);
+
+//
+
+string[] files = Directory.GetFiles(interfaceFolderPath, "*.cs");
+
+foreach (var file in files)
+{
+    string content = File.ReadAllText(file);
+
+    var match = Regex.Match(content, @"public interface (I\w+Service)\s*:\s*([^{]+)");
+    if (!match.Success) continue;
+
+    string interfaceName = match.Groups[1].Value;
+    string inheritance = match.Groups[2].Value;
+
+    string entityName = interfaceName.Substring(1).Replace("Service", "");
+    string controllerName = entityName + "Controller";
+
+    bool isReadable = inheritance.Contains("IDLReadableService");
+    bool isWritable = inheritance.Contains("IDLWritableService");
+
+    // Build the controller source text
+    var sb = new System.Text.StringBuilder();
+    sb.AppendLine("using Microsoft.AspNetCore.Mvc;");
+    sb.AppendLine($"using _0nline.{App}.DL.Contract.Interfaces;");
+    sb.AppendLine($"using _0nline.{App}.DL.Contract.Models.db;");
+    sb.AppendLine(@"
+/// This is auto-generated from a template. 
+/// Do not modify this file directly. Instead, create a partial class in a separate file to add custom logic.");
+    sb.AppendLine($"namespace {targetNamespace}");
+    sb.AppendLine("{");
+    //sb.AppendLine("    [ApiController]");  // already on the base class
+    sb.AppendLine($"    [Route(\"api/{subRoute}/[controller]\")]");
+    sb.AppendLine($"    public partial class {controllerName} : {App}BaseController<{entityName}, int>");
+    sb.AppendLine("    {");
+    sb.AppendLine($"        protected override {interfaceName} DbService {{ get; }} ");
+    sb.AppendLine();
+    sb.AppendLine($"        public {controllerName}({interfaceName} dbService) : base(dbService) {{");
+    sb.AppendLine("             DbService = dbService;");
+    sb.AppendLine("        }");
+
+
+    if (isReadable)
+    {
+        sb.AppendLine(@"
+        [HttpGet]
+        public virtual async Task<IActionResult> GetAll() {
+            var result = await DbService.GetAllAsync();
+            return Ok(result);
+        }
+
+        [HttpGet(""lookup"")]
+        public virtual async Task<IActionResult> GetLookup() {
+            var result = await DbService.GetLookupAsync();
+            return Ok(result);
+        }");
+    }
+
+    if (isWritable)
+    {
+        sb.AppendLine(@"
+        [HttpPost]
+        public virtual async Task<IActionResult> Create([FromBody] " + entityName + @" entity) {
+            var result = await DbService.CreateAsync(entity);
+            return Ok(result);
+        }
+
+        [HttpPut]
+        public virtual async Task<IActionResult> Update([FromBody] " + entityName + @" entity) {
+            var result = await DbService.UpdateAsync(entity);
+            return Ok(result);
+        }
+
+        [HttpDelete(""{id}"")]
+        public virtual async Task<IActionResult> DeleteOrDeactivate(int id) {
+            var result = await DbService.DeleteOrDeactivateAsync(id);
+            return Ok(result);
+        }");
+    }
+
+    sb.AppendLine("    }");
+    sb.AppendLine("}");
+
+    // Write each controller to its own file
+
+    outputFile = Path.Combine(outputDir, controllerName + ".cs");
+    File.WriteAllText(outputFile, sb.ToString());
+}
+#>

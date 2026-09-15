@@ -1,0 +1,91 @@
+is_global = true
+build_property.EnableAotAnalyzer = 
+build_property.EnableSingleFileAnalyzer = 
+build_property.EnableTrimAnalyzer = false
+build_property.IncludeAllContentForSelfExtract = 
+build_property.MudDebugAnalyzer = 
+build_property.MudAllowedAttributePattern = 
+build_property.MudAllowedAttributeList = 
+build_property.TargetFramework = net8.0
+build_property.TargetFrameworkIdentifier = .NETCoreApp
+build_property.TargetFrameworkVersion = v8.0
+build_property.TargetPlatformMinVersion = 
+build_property.UsingMicrosoftNETSdkWeb = 
+build_property.ProjectTypeGuids = 
+build_property.InvariantGlobalization = false
+build_property.PlatformNeutralAssembly = 
+build_property.EnforceExtendedAnalyzerRules = 
+build_property.EntryPointFilePath = 
+build_property._SupportedPlatformList = browser
+build_property.RootNamespace = 0nline.Biller.Wasm
+build_property.RootNamespace = 0nline.Biller.Wasm
+build_property.ProjectDir = Z:\Projects\0nline\Biller\0nline.Biller.Wasm\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = false
+build_property.RazorLangVersion = 8.0
+build_property.SupportLocalizedComponentNames = 
+build_property.GenerateRazorMetadataSourceChecksumAttributes = 
+build_property.MSBuildProjectDirectory = Z:\Projects\0nline\Biller\0nline.Biller.Wasm
+build_property._RazorSourceGeneratorDebug = 
+build_property.EffectiveAnalysisLevelStyle = 8.0
+build_property.EnableCodeStyleSeverity = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/App.razor]
+build_metadata.AdditionalFiles.TargetPath = QXBwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Components/TenantProfile.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xUZW5hbnRQcm9maWxlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Components/TenantRegister.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xUZW5hbnRSZWdpc3Rlci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Layout/LoginDisplay.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XExvZ2luRGlzcGxheS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Layout/RedirectToLogin.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XFJlZGlyZWN0VG9Mb2dpbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Pages/Auth/Login.Page.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQXV0aFxMb2dpbi5QYWdlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Pages/Auth/Register.Page.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQXV0aFxSZWdpc3Rlci5QYWdlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Pages/Contacts.Page.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQ29udGFjdHMuUGFnZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Pages/ContactSupport.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQ29udGFjdFN1cHBvcnQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Pages/Home.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcSG9tZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Pages/Tenant.Page.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVGVuYW50LlBhZ2UucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Pages/Test.Page.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVGVzdC5QYWdlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = X0ltcG9ydHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Layout/MainLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XE1haW5MYXlvdXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-6oue5do2rc
+
+[Z:/Projects/0nline/Biller/0nline.Biller.Wasm/Layout/NavMenu.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XE5hdk1lbnUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-rio0rssdg6

@@ -1,0 +1,133 @@
+﻿@page "/"
+@using Blazored.LocalStorage
+@inject NavigationManager Nav
+@inject ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>e-Biller 0nline | Home</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-8">
+                <MudText Typo="Typo.h4">Welcome back, @context.User.Identity?.Name!</MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@Logout" StartIcon="@Icons.Material.Filled.Logout">
+                    Logout
+                </MudButton>
+            </MudStack>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Default">Clients</MudText>
+                            <MudText Typo="Typo.h5">24 Total</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Default">Active Contracts</MudText>
+                            <MudText Typo="Typo.h5">8 Running</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Default">Billing History</MudText>
+                            <MudText Typo="Typo.h5">152 Invoices</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Default">Reminders</MudText>
+                            <MudText Typo="Typo.h5">3 Pending</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="4" Style="border-left: 4px solid var(--mud-palette-error);">
+                        <MudCardContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center">
+                                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Large" />
+                                <MudText Typo="Typo.h6" Color="Color.Error">Unpaid Alerts</MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.body1" Class="mt-2">You have 2 overdue invoices requiring immediate attention.</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <MudContainer MaxWidth="MaxWidth.Large">
+            <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="5" Class="py-5">
+                
+                <MudText Typo="Typo.h5" Align="Align.Center" Class="text-muted" Style="max-width: 600px;">
+                    Professional billing simplified for freelancers and small businesses.
+                    Manage contracts, send invoices, and get paid faster.
+                </MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary" Style="font-style: italic;">
+                    "Simplicity is Genius"
+                </MudText>
+                <MudStack Row="true" Spacing="4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" OnClick="@(() => Nav.NavigateTo("/login"))">
+                        Login
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" OnClick="@(() => Nav.NavigateTo("/register"))">
+                        Register
+                    </MudButton>
+                </MudStack>
+
+                <MudGrid Class="mt-6" Spacing="4" Style="width: 100%;">
+                    <MudItem xs="12" sm="4">
+                        <MudCard Elevation="0" Class="pa-4" Style="border: 1px solid var(--mud-palette-divider);">
+                            <MudCardContent>
+                                <MudIcon Icon="@Icons.Material.Filled.Description" Color="Color.Primary" Size="Size.Large" Class="mb-3" />
+                                <MudText Typo="Typo.h6">Professional Invoicing</MudText>
+                                <MudText Typo="Typo.body2" Class="text-muted">Create and send polished invoices in seconds that reflect your brand's quality.</MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudCard Elevation="0" Class="pa-4" Style="border: 1px solid var(--mud-palette-divider);">
+                            <MudCardContent>
+                                <MudIcon Icon="@Icons.Material.Filled.Assignment" Color="Color.Primary" Size="Size.Large" Class="mb-3" />
+                                <MudText Typo="Typo.h6">Contract Tracking</MudText>
+                                <MudText Typo="Typo.body2" Class="text-muted">Keep track of all your active agreements and deadlines in one centralized location.</MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudCard Elevation="0" Class="pa-4" Style="border: 1px solid var(--mud-palette-divider);">
+                            <MudCardContent>
+                                <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Color="Color.Primary" Size="Size.Large" Class="mb-3" />
+                                <MudText Typo="Typo.h6">Automated Reminders</MudText>
+                                <MudText Typo="Typo.body2" Class="text-muted">Let the system handle the awkward follow-ups with automated payment reminders.</MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                </MudGrid>
+            </MudStack>
+        </MudContainer>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");   // clear local storage
+        // Step 1: remove the token from local storage
+        if (AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
+        {
+            await jwtProvider.NotifyUserLogoutAsync();                // notify Blazor
+        }
+
+        // Step 3: redirect to login page
+        Nav.NavigateTo("/");
+    }
+}

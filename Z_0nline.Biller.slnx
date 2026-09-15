@@ -1,0 +1,13 @@
+<Solution>
+  <Project Path="../Shared/Auth/Contract/0nline.Shared.Auth.Contract.csproj" />
+  <Project Path="../Shared/Client/0nline.Shared.Client.csproj" />
+  <Project Path="../Shared/Contract/0nline.Shared.Contract.csproj" />
+  <Project Path="../Shared/Db/Contract/0nline.Shared.Db.Contract.csproj" />
+  <Project Path="../Shared/Db/Service/0nline.Shared.Db.Service.csproj" />
+  <Project Path="../Shared/Server/0nline.Shared.Server.csproj" />
+  <Project Path="Api.Lib/0nline.Biller.Api.Lib.csproj" Id="97655ff2-3343-4a8c-8225-d4734bdb42c0" />
+  <Project Path="DL.Contract/0nline.Biller.DL.Contract.csproj" />
+  <Project Path="DL/0nline.Biller.DL.csproj" />
+  <Project Path="Test/0nline.Biller.Test.csproj" />
+  <Project Path="Wasm/0nline.Biller.Wasm.csproj" />
+</Solution>

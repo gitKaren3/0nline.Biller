@@ -1,0 +1,35 @@
+### Get Image by ID
+GET https://localhost:5001/api/biller/image/1
+
+### Get all Images
+GET https://localhost:5001/api/biller/image
+
+### Lookup Images
+GET https://localhost:5001/api/biller/image/lookup
+
+### Create Image
+POST https://localhost:5001/api/biller/image
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "Url": "Sample",
+  "Caption": "Sample",
+  "Tenant": "Sample"
+}
+
+### Update Image
+PUT https://localhost:5001/api/biller/image
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "Url": "Sample",
+  "Caption": "Sample",
+  "Tenant": "Sample"
+}
+
+### Delete Image
+DELETE https://localhost:5001/api/biller/image/1

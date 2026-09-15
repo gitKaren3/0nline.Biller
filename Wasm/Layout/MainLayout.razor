@@ -1,0 +1,154 @@
+﻿@inherits LayoutComponentBase
+@using Biller.Wasm.Client.Auth
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager Nav
+@inject IThemeService ThemeService
+@inject UserSession UserSession
+@inject ISnackbar Snackbar
+
+<MudThemeProvider Theme="@ThemeService.CurrentTheme" IsDarkMode="@ThemeService.IsDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<AuthorizeView>
+    <NotAuthorized>
+        <div style="position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:8px; z-index:1000;">
+            <DarkModeToggle DarkModeChanged="OnDarkModeChanged" />
+        </div>
+
+        <MudContainer MaxWidth="MaxWidth.False" Gutters="false" Class="hero">
+            <p class="logo">
+                <Logo Width="210" />
+                <br />
+                <span class="logo-text">PRODUCTIONS</span>
+            </p>
+        </MudContainer>
+        <MudText Typo="Typo.h2" Align="Align.Center" Color="Color.Primary" Style="font-weight: 700;">
+            The e-Biller
+        </MudText>
+       
+        @Body
+       
+        <MudContainer MaxWidth="MaxWidth.False" 
+                      Class="d-flex flex-column align-items-center py-2"
+                      style="background-color: var(--mud-palette-dark); color: var(--mud-palette-dark-text);">
+            <MudText Typo="Typo.body2" Align="Align.Center">
+                &copy; 2026 0nline.co.za — All rights reserved.
+            </MudText>
+        </MudContainer>
+    </NotAuthorized>
+    <Authorized>
+        <MudAppBar Color="Color.Primary" Elevation="4" Position="Position.Top">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                           Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+            <MudText Typo="Typo.h6">0nline</MudText>
+            <MudSpacer />
+
+            <DarkModeToggle DarkModeChanged="OnDarkModeChanged" />
+
+            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+            <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit">
+                <MudMenuItem Href="/profile">My Profile</MudMenuItem>
+                <MudMenuItem Href="/settings">Settings</MudMenuItem>
+                <MudMenuItem OnClick="Logout">Logout</MudMenuItem>
+            </MudMenu>
+        </MudAppBar>
+
+        <MudLayout>
+            <MudMainContent>
+                <MudDrawer @bind-Open="_drawerOpen"
+                           Anchor="Anchor.Left"
+                           Variant="DrawerVariant.Responsive"
+                           Elevation="1">
+                    <NavMenu />
+                </MudDrawer>
+                <MudContainer MaxWidth="MaxWidth.False" Gutters="true" Class="py-4">
+                    @Body
+                </MudContainer>
+               
+                <MudContainer Elevation="1" MaxWidth="MaxWidth.False" 
+                              Class="d-flex flex-column align-items-center py-2"
+                              style="background-color: var(--mud-palette-dark); color: var(--mud-palette-dark-text);">
+                    <MudText Typo="Typo.caption"  Align="Align.Center"><i>"Simplicity is Genius"</i></MudText>
+                    <MudText Typo="Typo.caption"  Align="Align.Center">
+                        &copy; 2026 0nline.co.za — All rights reserved.
+                    </MudText>
+                </MudContainer>
+            </MudMainContent>
+        </MudLayout>
+    </Authorized>
+</AuthorizeView>
+
+
+@code {
+    private bool _drawerOpen = true;
+
+    protected override void OnInitialized()
+    {
+        UserSession.OnSessionExpired += HandleSessionExpired;
+        UserSession.OnTenantRequired += HandleTenantRequired;
+    }
+
+    private async void HandleSessionExpired(string message)
+    {
+        Snackbar.Add(message, Severity.Warning);
+
+        // 1. Tell the AuthProvider the user is now anonymous
+        // This triggers the AuthorizeView to switch to <NotAuthorized>
+        if (AuthStateProvider is JwtAuthStateProvider jwtProvider)
+        {
+            await jwtProvider.NotifyUserLogoutAsync();
+        }
+
+        // 2. Redirect to login
+        // Redirect after a short delay so the user sees the message
+        _ = Task.Delay(500).ContinueWith(_ =>
+        {
+            Nav.NavigateTo("/login");
+        });
+    }
+
+    private void HandleTenantRequired(string message)
+    {
+        Snackbar.Add(message, Severity.Info);
+        _ = Task.Delay(500).ContinueWith(_ =>
+        {
+            Nav.NavigateTo("/tenant");
+        });
+
+    }
+
+    private void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    
+    private void OnDarkModeChanged(bool value)
+    {
+        StateHasChanged();
+    }
+
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");   // clear local storage
+        // Step 1: remove the token from local storage
+        if (AuthStateProvider is JwtAuthStateProvider jwtProvider)
+        {
+            await jwtProvider.NotifyUserLogoutAsync();                // notify Blazor   
+        }
+
+        // Step 3: redirect to login page
+        Nav.NavigateTo("/");
+    }
+
+    public void Dispose()
+    {
+        UserSession.OnSessionExpired -= HandleSessionExpired;
+        UserSession.OnTenantRequired -= HandleTenantRequired;
+    }
+}
+
+

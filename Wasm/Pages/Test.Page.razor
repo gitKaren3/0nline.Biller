@@ -1,0 +1,90 @@
+﻿@page "/test"
+
+<h3>Test Page</h3>
+
+<p>Current count: @_count</p>
+
+<button @onclick="IncrementCount">Click me</button>
+
+<MudForm @ref="_Form" Model="testModel" FormName="TestForm">
+    <PhoneNumberField Label="Cell Phone" Class="mt-3" Required="true"
+              @bind-Value="testModel.PhoneNumberStr"
+              For="@(() => testModel.PhoneNumberStr)"/>
+    <br/>
+
+    <MudTextField T="string" Adornment="Adornment.Start" Label="Output" 
+            Value="@testModel.PhoneNumberStr">
+    </MudTextField>
+    <br/>
+</MudForm>
+
+@* <MudCard Class="pa-4" >
+    <MudCardContent>
+        <ImageUpload @ref="_imageUpload" T="Image"
+                    UploadComplete="OnUploadComplete" 
+                    Category="Logo"/>
+    </MudCardContent>
+    <MudCardActions>
+        <MudButton Variant="Variant.Filled" 
+                  Color="Color.Primary" 
+                  OnClick="TriggerUpload">
+            Upload Image
+        </MudButton>
+    </MudCardActions>
+</MudCard> *@
+
+@if (!string.IsNullOrEmpty(_uploadedUrl))
+{
+    <MudText Typo.Typo.h3 GutterBottom="true">Image Upload Test</MudText>
+    <MudAlert Severity="Severity.Success" Class="mt-4">
+        Image uploaded successfully! URL: @_uploadedUrl
+    </MudAlert>
+}
+
+@code {
+
+    private int _count = 0;
+
+    private void IncrementCount()
+    {
+        _count++;
+    }
+
+    private ImageUpload<Image>? _imageUpload ;
+    private string? _uploadedUrl;
+
+    MudForm? _Form;
+    TestModel testModel = new TestModel() { PhoneNumber= 27769045407 };
+
+
+    private async Task TriggerUpload()
+    {
+        if (_imageUpload != null)
+        {
+            await _imageUpload.UploadAsync();
+        }
+    }
+
+    private void OnUploadComplete(Image image)
+    {
+        _uploadedUrl = image.Url;
+    }
+
+    private class TestModel
+    {
+        public long? PhoneNumber { get; set; }
+
+        public string? PhoneNumberStr
+        {
+            get
+            {
+                return '+' + PhoneNumber?.ToString();
+            }
+            set
+            {
+                PhoneNumber = string.IsNullOrEmpty(value) ? null : long.Parse(value);
+            }
+        }
+
+    }
+}

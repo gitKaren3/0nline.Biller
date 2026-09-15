@@ -1,0 +1,43 @@
+﻿@inject NavigationManager NavManager
+
+<MudNavMenu Class="mud-navmenu-root">
+
+    <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home" Match="NavLinkMatch.All">
+        Home
+    </MudNavLink>
+
+    <MudNavLink Href="/tenant" Icon="@Icons.Material.Filled.Person" Match="NavLinkMatch.Prefix">
+        My Profile
+    </MudNavLink>
+
+    <MudNavGroup Title="My Admin" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="@_adminExpanded">
+
+        <MudNavLink Href="/contacts" Icon="@Icons.Material.Filled.People" Match="NavLinkMatch.Prefix">
+            Clients
+        </MudNavLink>
+
+        <MudNavLink Href="/admin/contracts" Icon="@Icons.Material.Filled.Description" Match="NavLinkMatch.Prefix">
+            Contracts
+        </MudNavLink>
+    </MudNavGroup>
+
+    <MudNavLink Href="/settings" Icon="@Icons.Material.Filled.Settings" Match="NavLinkMatch.Prefix">
+        Settings
+    </MudNavLink>
+
+    <MudNavLink Href="/support" Icon="@Icons.Material.Filled.Mail" Match="NavLinkMatch.Prefix">
+        Contact Us
+    </MudNavLink>
+
+</MudNavMenu>
+
+@code {
+    private bool _adminExpanded = false;
+
+    protected override void OnInitialized()
+    {
+        // Optionally expand Admin group when current URI is under /admin
+        var uri = NavManager.Uri;
+        _adminExpanded = uri.Contains("/admin");
+    }
+}
