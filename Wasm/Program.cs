@@ -1,5 +1,6 @@
 using _0nline.Auth.Contract;
 using _0nline.Shared.Client.Services;
+using _0nline.Shared.Client.Extensions;
 using _0nline.Shared.Client.UI;
 using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Client.Interfaces;
@@ -64,10 +65,8 @@ builder.Services.AddLocalization(options => options.ResourcesPath = "");   // to
 //CultureInfo.DefaultThreadCurrentUICulture = new CultureInfo("en");
 #endregion // .......................................................................................
 
-#region * Theme *
-// use ThemeSettings from appsettings.json to configure the theme service (will default to the values in the ThemeSettings constructor if not provided)
-builder.Services.Configure<ThemeSettings>(builder.Configuration.GetSection("ThemeSettings"));
-builder.Services.AddScoped<IThemeService, ThemeService>();
+#region * Shared Client *
+builder.Services.AddSharedClientServices(builder.Configuration.GetSection("ThemeSettings"));
 #endregion // .......................................................................................
 
 #region * Auth *
@@ -134,9 +133,6 @@ builder.Services.AddHttpClient<IMailService,MailServiceClient>(client =>
 
 #endregion // .......................................................................................
 
-#region " Client Services "
-builder.Services.AddSingleton<IPhoneNumberService, PhoneNumberService>();
-#endregion
 
 try
 {
