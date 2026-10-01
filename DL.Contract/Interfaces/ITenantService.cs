@@ -9,6 +9,6 @@ namespace _0nline.Biller.DL.Contract.Interfaces
         // Add public tenant-specific methods here if needed
         Task<Result<Tenant>> CreateOrUpdateAsync(Tenant entity);
 
-        Task<Result<Tenant?>> GetTenantByUserIdAsync(string userId);
+        Task<Result<Tenant?>> GetTenantByUserIdAsync(long userId);
     }
 }

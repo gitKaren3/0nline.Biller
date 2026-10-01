@@ -12,7 +12,7 @@ namespace _0nline.Biller.Wasm.Client.DL
         {
         }
 
-        public Task<Result<Tenant?>> GetTenantByUserIdAsync(string userId)
+        public Task<Result<Tenant?>> GetTenantByUserIdAsync(long userId)
                 => GetAndHandleAsync<Tenant?>($"foruser/{userId}");
 
         public new Task<Result<Tenant>> CreateAsync(Tenant entity) => base.CreateAsync(entity);

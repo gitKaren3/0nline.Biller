@@ -31,7 +31,7 @@ namespace _0nline.Biller.DL.Services
             }
             else if (tenant.UserId.HasValue)
             {
-                var result = await GetTenantByUserIdAsync(tenant.UserId.Value.ToString());
+                var result = await GetTenantByUserIdAsync(tenant.UserId.Value);
                 if (result.Successful && result.Value != null) {
                     var existingTenant = result.Value;
                     tenant.ID = existingTenant.ID;
@@ -43,10 +43,10 @@ namespace _0nline.Biller.DL.Services
             return await CreateAsync(tenant);
         }
 
-        public async Task<Result<Tenant?>> GetTenantByUserIdAsync(string userId)
+        public async Task<Result<Tenant?>> GetTenantByUserIdAsync(long userId)
         {             
             using var conn = Connection;
-            string sql = $"SELECT * FROM {_tableName} WHERE UserId = @UserId";
+            string sql = $"SELECT * FROM {Quoted(_tableName)} WHERE {Quoted("UserId")} = @UserId";
             
             var entity = await conn.QueryFirstOrDefaultAsync<Tenant>(sql, new { UserId = userId });
             if (entity != null)

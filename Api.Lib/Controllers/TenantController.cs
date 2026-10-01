@@ -17,7 +17,7 @@ namespace _0nline.Biller.Api.Lib
 
 
         [HttpGet("foruser/{userid}")]
-        public virtual async Task<IActionResult> GetByUserId(string userid)
+        public virtual async Task<IActionResult> GetByUserId(long userid)
         {
             var result = await TenantService.GetTenantByUserIdAsync(userid);
             return Ok(result);
