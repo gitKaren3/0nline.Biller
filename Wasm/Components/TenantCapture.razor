@@ -1,0 +1,408 @@
+@using System.ComponentModel.DataAnnotations
+@inject ISnackbar Snackbar
+@inject ITenantService TenantService
+@inject ITierService TierService
+@inject ICompanyService CompanyService
+@inject IImageService ImageService
+@inject IAuthenticationService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserSession UserSession
+
+@* One screen for both onboarding and editing the profile.
+   The business section is optional, but the moment anything in it is filled in
+   it has to be complete - the database refuses a partial company. *@
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-8 d-block mx-auto" />
+}
+else
+{
+    <MudForm @ref="_contactForm" Model="@contactmodel">
+        <MudText Typo="Typo.h6" Color="Color.Primary">Contact Details</MudText>
+        <ContactCapture Model="@contactmodel" />
+    </MudForm>
+
+    <MudDivider Class="my-5" />
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="1">
+            <MudText Typo="Typo.subtitle1">Business details</MudText>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">(Recommended)</MudText>
+        </MudStack>
+
+        <MudStack Row="true" Spacing="0">
+            @if (companymodel.ID > 0)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="OnClearCompany">
+                    Remove
+                </MudButton>
+            }
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ToggleBusiness"
+                       EndIcon="@(_businessExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)">
+                @(_businessExpanded ? "Hide" : "Add now")
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    @if (!_businessExpanded && !IsBusinessProvided())
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+            You'll need this before your first invoice - you can add it later from My Profile.
+        </MudText>
+    }
+
+    <MudCollapse Expanded="_businessExpanded">
+        <MudForm @ref="_businessForm" Model="@companymodel" Class="mt-2">
+            <MudGrid>
+                <MudItem xs="12" md="8">
+                    <MudTextField Label="Business Name"
+                                  @bind-Value="companymodel.Name" For="@(() => companymodel.Name)" />
+                </MudItem>
+
+                <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
+
+                <MudItem xs="12" md="8">
+                    <MudTextField Label="Address" Class="mt-3" Lines="3"
+                                  @bind-Value="companymodel.Address" For="@(() =>companymodel.Address)" />
+                </MudItem>
+
+                <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="City" Class="mt-3"
+                                  @bind-Value="companymodel.AddressCity" For="@(() => companymodel.AddressCity)" />
+                </MudItem>
+
+                <MudItem xs="6" md="2">
+                    <MudTextField Label="Postal Code" Class="mt-3"
+                                  @bind-Value="companymodel.AddressCode" For="@(() => companymodel.AddressCode)" />
+                </MudItem>
+
+                <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
+
+                <MudItem xs="12" md="8">
+                    <MudTextField Label="Country" Class="mt-3"
+                                  @bind-Value="companymodel.AddressCountry" For="@(() => companymodel.AddressCountry)" />
+                </MudItem>
+
+                <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
+
+                <MudItem xs="6" md="4">
+                    <MudTextField Label="Registration Number" Class="mt-3"
+                                  @bind-Value="companymodel.Registration" For="@(() => companymodel.Registration)" />
+                </MudItem>
+
+                <MudItem xs="6" md="4">
+                    <MudTextField Label="Phone" Class="mt-3 mb-6"
+                                  @bind-Value="companymodel.Phone" For="@(() => companymodel.Phone)" />
+                </MudItem>
+
+                <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
+
+                @if (!string.IsNullOrWhiteSpace(companymodel.Name))
+                {
+                    <MudItem xs="12" md="8">
+                        <MudText>Business Logo</MudText>
+
+                        <MudPaper Class="pa-6 ma-2" Outlined="true">
+                            <ImageUpload @ref="_logoUpload" T="Image"
+                                         Category="Logo" Caption="My Business Logo"
+                                         FileSelected="onLogoSelected"
+                                         FileCleared="onLogoCleared" />
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </MudCollapse>
+
+    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="OnSubmit" Disabled="_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <MudText>Busy</MudText>
+            }
+            else
+            {
+                <MudText>@(Onboarding ? "Get started" : "Save")</MudText>
+            }
+        </MudButton>
+    </MudStack>
+}
+
+@code {
+    /// <summary>True for a brand new tenant: drives the wording and the post-save redirect.</summary>
+    [Parameter] public bool Onboarding { get; set; }
+
+    /// <summary>The already-resolved tenant, or null when there isn't one yet.</summary>
+    [Parameter] public Tenant? Tenant { get; set; }
+
+    [Parameter] public EventCallback<Tenant> OnSaved { get; set; }
+
+    private MudForm? _contactForm;
+    private MudForm? _businessForm;
+    private ImageUpload<Image>? _logoUpload;
+
+    private bool _loading = true;
+    private bool _isSubmitting;
+    private bool _businessExpanded;
+    private bool _logoSelected;
+
+    private Tenant tenantmodel = new();
+    private Contact contactmodel = new();
+    private Company companymodel = new();
+    private Company? _removedCompany;
+
+    private byte tierId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Tenant is { ID: > 0 } existing)
+        {
+            tenantmodel = existing;
+            contactmodel = existing.Contact ?? new Contact();
+            companymodel = existing.Company ?? new Company();
+
+            // A started business section comes back open so nothing is half captured.
+            _businessExpanded = existing.Company != null;
+
+            if (tenantmodel.TierID.HasValue
+                && tenantmodel.TierID.Value > 0
+                && tenantmodel.TierID.Value <= byte.MaxValue)
+            {
+                tierId = (byte)tenantmodel.TierID.Value;
+            }
+        }
+        else
+        {
+            tenantmodel = new Tenant();
+            contactmodel = new Contact { UserId = UserSession.UserId };
+            companymodel = new Company();
+
+            contactmodel.Email = await GetIdentityEmailAsync();
+            await LoadTiersAsync();
+        }
+
+        _loading = false;
+    }
+
+    /// <summary>
+    /// The account already knows the signed-in address, so don't ask for it again.
+    /// Only used when it actually looks like an email - Identity.Name may be a display name.
+    /// </summary>
+    private async Task<string?> GetIdentityEmailAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var name = state.User?.Identity?.Name;
+
+        return string.IsNullOrWhiteSpace(name) || !name.Contains('@') ? null : name;
+    }
+
+    private async Task LoadTiersAsync()
+    {
+        var result = await TierService.GetLookupAsync();
+        if (result.Successful && result.Value is { Count: > 0 } lookup)
+        {
+            // Keeps the default tier when the lookup comes back with something unexpected,
+            // rather than throwing on the onboarding path.
+            int first = lookup.Keys.First();
+            if (first > 0 && first <= byte.MaxValue)
+                tierId = (byte)first;
+        }
+    }
+
+    private void ToggleBusiness() => _businessExpanded = !_businessExpanded;
+
+    /// <summary>
+    /// True when the business section has to be validated. Content decides this, not
+    /// whether the panel happens to be open, so collapsing never hides a half-filled section.
+    /// </summary>
+    private bool IsBusinessProvided()
+        => tenantmodel.Company != null
+           || !string.IsNullOrWhiteSpace(companymodel.Name)
+           || !string.IsNullOrWhiteSpace(companymodel.Address)
+           || !string.IsNullOrWhiteSpace(companymodel.AddressCity)
+           || !string.IsNullOrWhiteSpace(companymodel.AddressCode)
+           || !string.IsNullOrWhiteSpace(companymodel.AddressCountry)
+           || !string.IsNullOrWhiteSpace(companymodel.Registration)
+           || companymodel.Phone.HasValue
+           || _logoSelected;
+
+    /// <summary>
+    /// The standalone check against the model's own annotations. MudForm only validates
+    /// properties a field is bound to, so this is the backstop for the rule that matters:
+    /// never persist a business without a name, address and city.
+    /// </summary>
+    private bool ValidateBusinessModel()
+    {
+        var results = new List<ValidationResult>();
+        return Validator.TryValidateObject(
+            companymodel, new ValidationContext(companymodel), results, validateAllProperties: true);
+    }
+
+    private async Task OnSubmit()
+    {
+        if (_isSubmitting) return;
+
+        _isSubmitting = true;
+        try
+        {
+            bool businessProvided = IsBusinessProvided();
+
+            // Whatever they started has to be visible with its errors on this same click.
+            if (businessProvided)
+                _businessExpanded = true;
+
+            await _contactForm!.ValidateAsync();
+            bool contactValid = _contactForm.IsValid;
+
+            bool businessValid = true;
+            if (businessProvided)
+            {
+                if (_businessForm != null)
+                    await _businessForm.ValidateAsync();
+
+                businessValid = (_businessForm?.IsValid ?? false) && ValidateBusinessModel();
+            }
+            else if (_businessForm != null)
+            {
+                // An unused section must not carry stale errors into the save.
+                await _businessForm.ResetValidationAsync();
+            }
+
+            if (!contactValid || !businessValid)
+            {
+                if (businessProvided && !businessValid && _businessForm == null)
+                    Snackbar.Add("Please complete the Business details section.", Severity.Warning);
+                return;
+            }
+
+            // A tenant created on this click gets the subscription; a resumed one must not
+            // be subscribed twice - AddUserSubscriptionAsync is a bare INSERT.
+            bool isNew = Onboarding && tenantmodel.ID == 0;
+
+            tenantmodel.UserId ??= UserSession.UserId;
+            tenantmodel.TierID ??= tierId;
+            tenantmodel.Contact = contactmodel;
+            tenantmodel.ContactID ??= 0;
+
+            if (businessProvided)
+                tenantmodel.Company = companymodel;
+            else
+            {
+                tenantmodel.Company = null;
+                tenantmodel.CompanyID = null;
+            }
+
+            // Contact and business land together, in one transaction.
+            var tResult = await TenantService.CreateOrUpdateAsync(tenantmodel);
+            if (!tResult.Successful)
+            {
+                Snackbar.Add($"Save failed: {tResult.Message ?? "Unable to save your details."}", Severity.Error);
+                return;
+            }
+
+            var saved = tResult.Value;
+            if (saved is null)
+            {
+                Snackbar.Add("Save failed: nothing was returned.", Severity.Error);
+                return;
+            }
+
+            tenantmodel = saved;
+            UserSession.UpdateTenant(saved.ID);
+
+            // Only a tenant created on this click gets a subscription; a resumed one
+            // must not be subscribed twice.
+            if (isNew)
+            {
+                var subResult = await AuthService.AddUserSubscriptionAsync(
+                    userId: UserSession.UserId?.ToString() ?? string.Empty,
+                    appId: UserSession.AppId,
+                    tenantId: saved.ID,
+                    tierId: tierId);
+
+                if (subResult.IsFailed)
+                {
+                    Snackbar.Add(subResult.Message ?? "Could not set up your subscription.", Severity.Error);
+                    return;
+                }
+
+                // Refresh the token before anything else: TenancyMiddleware reads the
+                // tenantId claim to resolve the tenant server side.
+                if (!string.IsNullOrEmpty(subResult.Value?.Token)
+                    && AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
+                {
+                    await jwtProvider.NotifyUserAuthenticationAsync(subResult.Value.Token);
+                }
+            }
+
+            // The company and image pipelines are guarded by TenantMessageHandler, so they
+            // only run now that the session knows its tenant.
+            if (_removedCompany is { ID: > 0 })
+            {
+                var oldLogo = _removedCompany.LogoImage;
+                var deleteResult = await CompanyService.DeleteOrDeactivateAsync(_removedCompany.ID);
+                if (!deleteResult.Successful)
+                {
+                    Snackbar.Add($"Your details were saved, but the previous business could not be removed: {deleteResult.Message}",
+                                 Severity.Warning);
+                }
+                else if (oldLogo != null)
+                {
+                    // keep the logo locatable once its company row is gone
+                    oldLogo.TenantID = saved.ID;
+                    await ImageService.UpdateAsync(oldLogo);
+                }
+
+                _removedCompany = null;
+            }
+
+            if (_logoSelected && _logoUpload != null && tenantmodel.Company != null)
+            {
+                if (await _logoUpload.UploadAsync() is Image image)
+                {
+                    tenantmodel.Company.LogoImageID = image.ID;
+                    var logoResult = await TenantService.UpdateAsync(tenantmodel);
+                    if (!logoResult.Successful)
+                        Snackbar.Add($"Your details were saved, but the logo failed: {logoResult.Message}", Severity.Warning);
+                }
+            }
+
+            await OnSaved.InvokeAsync(tenantmodel);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    /// <summary>
+    /// Drops a saved business row, or clears the draft if it was never saved.
+    /// </summary>
+    private async Task OnClearCompany()
+    {
+        if (companymodel.ID > 0)
+            _removedCompany = companymodel;
+
+        companymodel = new Company();
+        tenantmodel.Company = null;
+        tenantmodel.CompanyID = null;
+        _logoSelected = false;
+        _businessExpanded = false;
+
+        if (_businessForm != null)
+            await _businessForm.ResetValidationAsync();
+    }
+
+    private void onLogoSelected(string fileName) => _logoSelected = true;
+
+    private void onLogoCleared() => _logoSelected = false;
+}

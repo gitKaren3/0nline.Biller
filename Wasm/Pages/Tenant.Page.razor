@@ -2,14 +2,8 @@
 @using _0nline.Biller.Wasm.Components
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
-@inject IStringLocalizer<LocalResources> Localizer
 @inject ITenantService TenantService
-@inject ITierService TierService
-@inject IAuthenticationService AuthService
-@inject AuthenticationStateProvider AuthStateProvider
 @inject UserSession UserSession
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
-@inject System.Net.Http.IHttpClientFactory ClientFactory
 
 <AuthorizeView>
     <NotAuthorized>
@@ -17,67 +11,102 @@
     </NotAuthorized>
 </AuthorizeView>
 
-@if (_newregistration)
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-8 d-block mx-auto" />
+}
+else if (_loadError != null)
+{
+    <MudAlert Severity="Severity.Error" Class="my-6" Variant="Variant.Outlined">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudText>@_loadError</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Reload">Try again</MudButton>
+        </MudStack>
+    </MudAlert>
+}
+else if (_onboarding)
 {
     <MudText Typo="Typo.h3" Class="py-3 mb-6">Get Started:</MudText>
-    
-    <TenantRegister OnRegistrationCompleted="onRegistrationCompleted" OnTenantCreated="onTenantCreated" />
-    
+
+    <TenantCapture Onboarding="true" Tenant="@_tenant" OnSaved="OnSaved" />
 }
 else
 {
-    <TenantProfile OnSaved="OnSaved" />
+    <TenantCapture Tenant="@_tenant" OnSaved="OnSaved" />
 }
 
 
 @code {
 
-    private bool _newregistration = false;
+    private bool _loading = true;
+    private bool _onboarding;
+    private string? _loadError;
+    private Tenant? _tenant;
 
+    /// <summary>
+    /// The screen is chosen by what exists for this user, not by the session's tenant id -
+    /// a registration abandoned before the token was refreshed comes back as a profile
+    /// rather than starting the user over.
+    /// A failed lookup is deliberately not treated as "no tenant": that would offer a
+    /// returning user a second registration, and the subscription insert is not idempotent.
+    /// </summary>
     protected override async Task OnInitializedAsync()
     {
-        if (UserSession.TenantId == 0)
+        _loadError = null;
+        _tenant = null;
+
+        var userId = UserSession.UserId;
+
+        if (!userId.HasValue)
         {
-            _newregistration = true;
+            // <AuthorizeView> is already redirecting; just don't render the form.
+            _onboarding = true;
+            _loading = false;
+            return;
+        }
+
+        var result = UserSession.TenantId > 0
+            ? await TenantService.GetOneAsync(UserSession.TenantId)
+            : await TenantService.GetTenantByUserIdAsync(userId.Value);
+
+        if (result.Successful && result.Value is not null)
+        {
+            _tenant = result.Value;
+            _onboarding = false;
+            UserSession.UpdateTenant(_tenant.ID);
+        }
+        else if (result.IsNone)
+        {
+            // genuinely nothing on file
+            _onboarding = true;
+
+            // the session may still be pointing at a tenant that no longer exists
+            if (UserSession.TenantId > 0)
+                UserSession.UpdateTenant(0);
+        }
+        else
+        {
+            _loadError = string.IsNullOrWhiteSpace(result.Message)
+                ? "We could not load your profile. Please try again."
+                : result.Message;
+        }
+
+        _loading = false;
+    }
+
+    private async Task Reload() => await OnInitializedAsync();
+
+    private void OnSaved(Tenant tenant)
+    {
+        if (_onboarding)
+        {
+            Snackbar.Add("Tenant registration completed successfully.", Severity.Success);
+            Nav.NavigateTo("/");
+        }
+        else
+        {
+            // Stay on the profile - a failed save must never bounce the user to the home page.
+            Snackbar.Add("Tenant profile saved successfully.", Severity.Success);
         }
     }
-
-
-    private async Task onTenantCreated(Tenant tenant)
-    {
-       
-            var authResult = await AuthService.AddUserSubscriptionAsync(
-                userId: UserSession?.UserId?.ToString()! ,
-                appId: UserSession?.AppId!,
-                tenantId: tenant.ID, 
-                tierId: tenant.TierID
-            );
-
-            if (authResult.IsFailed)
-            {
-                Snackbar.Add($"{authResult.Message}", Severity.Error);
-                return;
-            }
-
-            // 4. Update Token in Local Storage
-            if (!string.IsNullOrEmpty(authResult.Value?.Token))
-            {
-                if (AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
-                {
-                    await jwtProvider.NotifyUserAuthenticationAsync(authResult.Value.Token);
-                }
-            }
-    }
-
-    private async Task onRegistrationCompleted()
-    {
-        Snackbar.Add("Tenant registration completed successfully.", Severity.Success);
-        Nav.NavigateTo("/");
-    }
-
-    private async Task OnSaved()
-    {
-        Snackbar.Add("Tenant profile saved successfully.", Severity.Success);
-    }
-
 }
