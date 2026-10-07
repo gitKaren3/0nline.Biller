@@ -1,5 +1,5 @@
 {
-  "OutputDir": "../0nline.Biller.DL.Contract/Models/db/Generated",
+  "OutputDir": "../DL.Contract/Models/db/Generated",
   "Namespace": "_0nline.Biller.DL.Contract.Models.db",
   "ConnectionString": "host=localhost port=5432 dbname=0nline.Biller user=pilot password=hermes",
   "Scope": "public",

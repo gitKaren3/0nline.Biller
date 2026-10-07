@@ -1,8 +1,24 @@
+### use this to get auth token
+POST https://localhost:7053/api/auth/validate-login
+Content-Type: application/json
+{
+  "AppId" : "biller",
+  "Username" : "karen@corporatewebservices.co.za",
+  "Password" : "Karen@123",
+  "ReturnUrl" : "",
+  "RememberMe" : true
+}
+
 ### Get Tenant by ID
-GET https://localhost:5001/api/biller/tenant/1
+GET https://localhost:7053/api/biller/tenant/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkthcmVuIFphY2hhciIsInVuaXF1ZV9uYW1lIjoiS2FyZW4gWmFjaGFyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoia2FyZW5AY29ycG9yYXRld2Vic2VydmljZXMuY28uemEiLCJyZXR1cm5VcmwiOiIiLCJhcHAiOiJiaWxsZXIiLCJ0ZW5hbnRJZCI6IiIsInN0YXR1cyI6IiIsInJlbWVtYmVyTWUiOiJ0cnVlIiwiZXhwIjoxNzkxMjI0NTk4LCJpc3MiOiIwbmxpbmUuQXV0aCIsImF1ZCI6IjBubGluZS5BcHAifQ.L16q_IwJikI4jxonMaMsOLeGYZo71d8dKTWeoV5dQm4
+
+### Get Tenant by User ID
+GET https://localhost:7053/api/biller/tenant/foruser/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkthcmVuIFphY2hhciIsInVuaXF1ZV9uYW1lIjoiS2FyZW4gWmFjaGFyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoia2FyZW5AY29ycG9yYXRld2Vic2VydmljZXMuY28uemEiLCJyZXR1cm5VcmwiOiIiLCJhcHAiOiJiaWxsZXIiLCJ0ZW5hbnRJZCI6IiIsInN0YXR1cyI6IiIsInJlbWVtYmVyTWUiOiJ0cnVlIiwiZXhwIjoxNzkxMjI0NTk4LCJpc3MiOiIwbmxpbmUuQXV0aCIsImF1ZCI6IjBubGluZS5BcHAifQ.L16q_IwJikI4jxonMaMsOLeGYZo71d8dKTWeoV5dQm4
 
 ### Create Tenant
-POST https://localhost:5001/api/biller/tenant
+POST https://localhost:7053/api/biller/tenant
 Content-Type: application/json
 
 {
@@ -18,7 +34,7 @@ Content-Type: application/json
 }
 
 ### Update Tenant
-PUT https://localhost:5001/api/biller/tenant
+PUT https://localhost:7053/api/biller/tenant
 Content-Type: application/json
 
 {
@@ -34,4 +50,47 @@ Content-Type: application/json
 }
 
 ### Delete Tenant
-DELETE https://localhost:5001/api/biller/tenant/1
+DELETE https://localhost:7053/api/biller/tenant/1
+
+### CreateUpdateTenant
+POST https://localhost:7053/api/biller/tenant/createorupdate
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkthcmVuIFphY2hhciIsInVuaXF1ZV9uYW1lIjoiS2FyZW4gWmFjaGFyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoia2FyZW5AY29ycG9yYXRld2Vic2VydmljZXMuY28uemEiLCJyZXR1cm5VcmwiOiIiLCJhcHAiOiJiaWxsZXIiLCJ0ZW5hbnRJZCI6IiIsInN0YXR1cyI6IiIsInJlbWVtYmVyTWUiOiJ0cnVlIiwiZXhwIjoxNzkxMjkxMjM0LCJpc3MiOiIwbmxpbmUuQXV0aCIsImF1ZCI6IjBubGluZS5BcHAifQ.b11zCfOQFAzeulQ3-oW9Gy8FaPdmJaqUftvaRdUDDKQ
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "UserId": null,
+  "TierID": null,
+  "ContactID": null,
+  "CompanyID": null,
+  "Active": null,
+  "Tier": null,
+  "Contact": {
+    "ID": 0,
+    "TenantID": null,
+    "UserId": null,
+    "FirstName": "Sample",
+    "Surname": "Sample",
+    "Email": "test@test.com",
+    "CellPhone": 27111111111,
+    "Tenant": null,
+    "CellNo": "27111111111"
+  },
+  "Company": {
+    "ID": 0,
+    "TenantID": null,
+    "Name": "Sample",
+    "BillingContactID": null,
+    "Registration": "Sample",
+    "Address": "Sample",
+    "AddressCity": "Sample",
+    "AddressCode": "Sample",
+    "AddressCountry": "Sample",
+    "Phone": 27123456789,
+    "PhoneNo": "27123456789",
+    "LogoImageID": null,
+    "Active": null,
+    "BillingContact": null,
+    "LogoImage": null
+  }
+}

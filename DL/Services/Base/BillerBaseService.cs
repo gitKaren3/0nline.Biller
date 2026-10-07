@@ -8,7 +8,7 @@ using Dapper;
 
 namespace _0nline.Biller.DL.Services.Base
 {
-    public abstract class BillerBaseService<T> : DbService<T, int>, IDLBaseService<T> where T : class
+    public abstract class BillerBaseService<T> : DbService<T, int>, IDLBaseService<T> where T : class, IDbEntity
     {
         //constructor
         protected BillerBaseService(IDbContextProvider<BillerDbConfig> ctx, ISqlQueryProvider<T> queryStringService, ITenantContext tenancyContext)
