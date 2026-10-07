@@ -26,9 +26,10 @@ else if (_loadError != null)
 }
 else if (_onboarding)
 {
-    <MudText Typo="Typo.h3" Class="py-3 mb-6">Get Started:</MudText>
+    <MudText Typo="Typo.h3" Class="py-3 mb-3">Get Started:</MudText>
 
     <TenantCapture Onboarding="true" Tenant="@_tenant" OnSaved="OnSaved" />
+
 }
 else
 {
