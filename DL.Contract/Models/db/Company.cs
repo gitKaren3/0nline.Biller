@@ -6,8 +6,8 @@ namespace _0nline.Biller.DL.Contract.Models.db
 {
     public partial class Company
     {
-        public string? PhoneStr { 
-            get { return Phone?.ToString(); } 
+        public string? PhoneNo { 
+            get { return Phone?.ToString("+0"); } 
             set { Phone = string.IsNullOrEmpty(value) ? null : long.Parse(value); } 
         }
     }

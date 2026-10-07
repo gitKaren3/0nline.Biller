@@ -17,14 +17,8 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [Required(ErrorMessage = "Required")]
         public string? CellNo 
         {
-            get { return CellPhone?.ToString(); }
+            get { return CellPhone?.ToString("+0"); }
             set { CellPhone = string.IsNullOrEmpty(value) ? null : long.Parse(value); }
-        }
-
-        public string? BusinessNo
-        {
-            get { return  BusinessPhone?.ToString(); }
-            set { BusinessPhone = string.IsNullOrEmpty(value) ? null : long.Parse(value); }
         }
     } 
 }
