@@ -288,10 +288,18 @@ else
 
     private async Task UpdateUploadedLogo(Company company)
     {
-        if (company.LogoImageID.HasValue && company.LogoImageID.Value > 0)
+        int? OldLogoId = company.LogoImageID;
+        
+        if (_logoUpload != null && await _logoUpload.UploadAsync() is Image image)
         {
-            // remove the old logo before uploading the new one
-            var oldLogo = await ImageService.GetOneAsync(company.LogoImageID.Value);
+            company.LogoImageID = image.ID;
+            await CompanyService.UpdateAsync(company);
+        }
+
+        if (OldLogoId.HasValue)
+        {
+            // remove the old logo 
+            var oldLogo = await ImageService.GetOneAsync(OldLogoId.Value);
             if (oldLogo.Successful && oldLogo.Value is { })
             {
                 var deleteResult = await ImageService.DeleteOrDeactivateAsync(oldLogo.Value.ID);
@@ -300,11 +308,6 @@ else
                     // TODO: Log a warning but don't block the save: the new logo will be uploaded and the old one will be orphaned.
                 }
             }
-        }
-        if (_logoUpload != null && await _logoUpload.UploadAsync() is Image image)
-        {
-            company.LogoImageID = image.ID;
-            await CompanyService.UpdateAsync(company);
         }
     }
 

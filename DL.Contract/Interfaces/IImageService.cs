@@ -8,5 +8,6 @@ namespace _0nline.Biller.DL.Contract.Interfaces
     public interface IImageService : IDLReadableService<Image>, IDLWritableService<Image>
     {
         Task<Result<Image>> UploadAndRegisterImageAsync(IFormFile file, string category, string caption);
+        Task<Result> RemoveAndDeRegisterImageAsync(int imageId);
     }
 }

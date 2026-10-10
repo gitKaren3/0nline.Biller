@@ -31,7 +31,6 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<Image>> UpdateAsync(Image entity) => base.UpdateAsync(entity);
         public new Task<Result<Image?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
 
-
         public async Task<Result<Image>> UploadAndRegisterImageAsync(IFormFile file, string category, string caption)
         {
             var tenantId = _tenantContext.TenantId;
@@ -68,6 +67,36 @@ namespace _0nline.Biller.DL.Services
                 await _fileStoreService.DeleteAsync(storeResult.RelativePath);
                 
                 throw;       // Global exception handling logs and returns a failure result to the caller
+            }
+        }
+
+
+        public async Task<Result> RemoveAndDeRegisterImageAsync(int imageId)
+        { 
+            var image = await GetByIdAsync(imageId);
+            if (image != null)
+            {
+                string url = image.Url;
+                var count = await DeleteAsync(imageId);
+                if (count > 0)
+                {
+                    bool success = await _fileStoreService.DeleteAsync(url);
+
+                    if (success)
+                    {
+                        return Result.Success();
+                    }
+                    else
+                    {
+                        return Result.Failure($"Failed to delete the physical file at {url}.");
+                    }
+                }
+
+                return Result.Failure($"Failed to delete Image with ID {imageId} from the database.");
+            }
+            else
+            {
+                return Result.NotFound($"Image with ID {imageId} not found.");
             }
         }
 

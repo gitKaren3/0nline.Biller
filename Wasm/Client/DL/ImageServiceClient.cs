@@ -69,5 +69,9 @@ namespace _0nline.Biller.Wasm.Client.DL
             }
         }
 
+        public async Task<Result> RemoveAndDeRegisterImageAsync(int imageId)
+        {
+            return await base.DeleteAndHandleAsync<Image>($"remove/{imageId}");
+        }
     }
 }

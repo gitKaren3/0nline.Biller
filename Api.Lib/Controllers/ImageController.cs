@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+ using Microsoft.AspNetCore.Mvc;
 using _0nline.Biller.DL.Contract.Models.db;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
@@ -17,6 +17,13 @@ namespace _0nline.Biller.Api.Lib
                 throw new ArgumentNullException("No file uploaded.");
                 
             var result = await DbService.UploadAndRegisterImageAsync(file, category ?? string.Empty, caption ?? string.Empty);
+            return Ok(result);
+        }
+
+        [HttpDelete("remove/{imageId}")]
+        public async Task<IActionResult> Remove([FromRoute] int imageId)
+        {
+            var result = await DbService.RemoveAndDeRegisterImageAsync(imageId);
             return Ok(result);
         }
     }
