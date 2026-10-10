@@ -44,9 +44,8 @@ namespace _0nline.Biller.DL.Services
             string subdir = "images";
             if (category != string.Empty) subdir += $"/{category}";
 
-            // 1. Save physical file using the shared service
-            // We use "images" as the directory path for Biller images
-            var storeResult = await _fileStoreService.SaveAsync(file, appId, tenantId.Value, subdir);
+            // 1. Save physical file using the shared service (public for direct browser access)
+            var storeResult = await _fileStoreService.SaveAsync(file, appId, tenantId.Value, subdir, isPublic: true);
 
             // 2. Create DB record
             var image = new Image
@@ -80,7 +79,7 @@ namespace _0nline.Biller.DL.Services
                 var count = await DeleteAsync(imageId);
                 if (count > 0)
                 {
-                    bool success = await _fileStoreService.DeleteAsync(url);
+                    bool success = await _fileStoreService.DeleteAsync(url, isPublic: true);
 
                     if (success)
                     {
