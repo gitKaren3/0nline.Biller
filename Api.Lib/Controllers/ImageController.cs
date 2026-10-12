@@ -16,14 +16,14 @@ namespace _0nline.Biller.Api.Lib
             if (file == null || file.Length == 0)
                 throw new ArgumentNullException("No file uploaded.");
                 
-            var result = await DbService.UploadAndRegisterImageAsync(file, category ?? string.Empty, caption ?? string.Empty);
+            var result = await BaseService.UploadAndRegisterImageAsync(file, category ?? string.Empty, caption ?? string.Empty);
             return Ok(result);
         }
 
         [HttpDelete("remove/{imageId}")]
         public async Task<IActionResult> Remove([FromRoute] int imageId)
         {
-            var result = await DbService.RemoveAndDeRegisterImageAsync(imageId);
+            var result = await BaseService.RemoveAndDeRegisterImageAsync(imageId);
             return Ok(result);
         }
     }

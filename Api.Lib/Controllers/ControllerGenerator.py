@@ -28,15 +28,15 @@ namespace {target_namespace}
     [Route("api/{sub_route}/[controller]")]
     public abstract class {App}BaseController<T, TKey> : ControllerBase where T : class
     {{
-        protected virtual IDLBaseService<T> DbService {{ get; }}
+        protected virtual IDLBaseService<T> BaseService {{ get; }}
 
         public {App}BaseController(IDLBaseService<T> baseService) {{
-            DbService = baseService;
+            BaseService = baseService;
         }}
 
         [HttpGet("{{id}}")]
         public virtual async Task<IActionResult> GetById(int id) {{
-            var result = await DbService.GetOneAsync(id);
+            var result = await BaseService.GetOneAsync(id);
             return Ok(result);
         }}
     }}
@@ -69,10 +69,14 @@ for file in os.listdir(interface_folder_path):
     is_readable = "IDLReadableService" in inheritance
     is_writable = "IDLWritableService" in inheritance
 
+    is_tenant = entity_name == "Tenant"
+
     sb = []
     sb.append("using Microsoft.AspNetCore.Mvc;")
     sb.append(f"using _0nline.{App}.DL.Contract.Interfaces;")
     sb.append(f"using _0nline.{App}.DL.Contract.Models.db;")
+    if is_tenant:
+        sb.append("using _0nline.Auth.Contract;")
     sb.append("""
 /// This is auto-generated from a template. 
 /// Do not modify this file directly. Instead, create a partial class in a separate file to add custom logic.""")
@@ -81,23 +85,31 @@ for file in os.listdir(interface_folder_path):
     sb.append(f"    [Route(\"api/{sub_route}/[controller]\")]")
     sb.append(f"    public partial class {controller_name} : {App}BaseController<{entity_name}, int>")
     sb.append("    {")
-    sb.append(f"        protected override {interface_name} DbService {{ get; }} ")
+    sb.append(f"        protected override {interface_name} BaseService {{ get; }} ")
     sb.append("")
-    sb.append(f"        public {controller_name}({interface_name} dbService) : base(dbService) {{")
-    sb.append("             DbService = dbService;")
-    sb.append("        }")
+    if is_tenant:
+        sb.append("        protected IAuthenticationService AuthService { get; }")
+        sb.append("")
+        sb.append(f"        public {controller_name}({interface_name} baseService, IAuthenticationService authService) : base(baseService) {{")
+        sb.append("             BaseService = baseService;")
+        sb.append("             AuthService = authService;")
+        sb.append("        }")
+    else:
+        sb.append(f"        public {controller_name}({interface_name} baseService) : base(baseService) {{")
+        sb.append("             BaseService = baseService;")
+        sb.append("        }")
 
     if is_readable:
         sb.append("""
         [HttpGet]
         public virtual async Task<IActionResult> GetAll() {
-            var result = await DbService.GetAllAsync();
+            var result = await BaseService.GetAllAsync();
             return Ok(result);
         }
 
         [HttpGet("lookup")]
         public virtual async Task<IActionResult> GetLookup() {
-            var result = await DbService.GetLookupAsync();
+            var result = await BaseService.GetLookupAsync();
             return Ok(result);
         }""")
 
@@ -105,19 +117,19 @@ for file in os.listdir(interface_folder_path):
         sb.append(f"""
         [HttpPost]
         public virtual async Task<IActionResult> Create([FromBody] {entity_name} entity) {{
-            var result = await DbService.CreateAsync(entity);
+            var result = await BaseService.CreateAsync(entity);
             return Ok(result);
         }}
 
         [HttpPut]
         public virtual async Task<IActionResult> Update([FromBody] {entity_name} entity) {{
-            var result = await DbService.UpdateAsync(entity);
+            var result = await BaseService.UpdateAsync(entity);
             return Ok(result);
         }}
 
         [HttpDelete("{{id}}")]
         public virtual async Task<IActionResult> DeleteOrDeactivate(int id) {{
-            var result = await DbService.DeleteOrDeactivateAsync(id);
+            var result = await BaseService.DeleteOrDeactivateAsync(id);
             return Ok(result);
         }}""")
 

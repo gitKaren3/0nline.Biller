@@ -9,39 +9,39 @@ namespace _0nline.Biller.Api.Lib
     [Route("api/biller/[controller]")]
     public partial class ImageController : BillerBaseController<Image, int>
     {
-        protected override IImageService DbService { get; } 
+        protected override IImageService BaseService { get; } 
 
-        public ImageController(IImageService dbService) : base(dbService) {
-             DbService = dbService;
+        public ImageController(IImageService baseService) : base(baseService) {
+             BaseService = baseService;
         }
 
         [HttpGet]
         public virtual async Task<IActionResult> GetAll() {
-            var result = await DbService.GetAllAsync();
+            var result = await BaseService.GetAllAsync();
             return Ok(result);
         }
 
         [HttpGet("lookup")]
         public virtual async Task<IActionResult> GetLookup() {
-            var result = await DbService.GetLookupAsync();
+            var result = await BaseService.GetLookupAsync();
             return Ok(result);
         }
 
         [HttpPost]
         public virtual async Task<IActionResult> Create([FromBody] Image entity) {
-            var result = await DbService.CreateAsync(entity);
+            var result = await BaseService.CreateAsync(entity);
             return Ok(result);
         }
 
         [HttpPut]
         public virtual async Task<IActionResult> Update([FromBody] Image entity) {
-            var result = await DbService.UpdateAsync(entity);
+            var result = await BaseService.UpdateAsync(entity);
             return Ok(result);
         }
 
         [HttpDelete("{id}")]
         public virtual async Task<IActionResult> DeleteOrDeactivate(int id) {
-            var result = await DbService.DeleteOrDeactivateAsync(id);
+            var result = await BaseService.DeleteOrDeactivateAsync(id);
             return Ok(result);
         }
     }

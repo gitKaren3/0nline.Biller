@@ -8,15 +8,15 @@ namespace _0nline.Biller.Api.Lib
     [Route("api/biller/[controller]")]
     public abstract class BillerBaseController<T, TKey> : ControllerBase where T : class
     {
-        protected virtual IDLBaseService<T> DbService { get; }
+        protected virtual IDLBaseService<T> BaseService { get; }
 
         public BillerBaseController(IDLBaseService<T> baseService) {
-            DbService = baseService;
+            BaseService = baseService;
         }
 
         [HttpGet("{id}")]
         public virtual async Task<IActionResult> GetById(int id) {
-            var result = await DbService.GetOneAsync(id);
+            var result = await BaseService.GetOneAsync(id);
             return Ok(result);
         }
     }

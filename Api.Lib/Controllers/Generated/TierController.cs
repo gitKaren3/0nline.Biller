@@ -9,21 +9,21 @@ namespace _0nline.Biller.Api.Lib
     [Route("api/biller/[controller]")]
     public partial class TierController : BillerBaseController<Tier, int>
     {
-        protected override ITierService DbService { get; } 
+        protected override ITierService BaseService { get; } 
 
-        public TierController(ITierService dbService) : base(dbService) {
-             DbService = dbService;
+        public TierController(ITierService baseService) : base(baseService) {
+             BaseService = baseService;
         }
 
         [HttpGet]
         public virtual async Task<IActionResult> GetAll() {
-            var result = await DbService.GetAllAsync();
+            var result = await BaseService.GetAllAsync();
             return Ok(result);
         }
 
         [HttpGet("lookup")]
         public virtual async Task<IActionResult> GetLookup() {
-            var result = await DbService.GetLookupAsync();
+            var result = await BaseService.GetLookupAsync();
             return Ok(result);
         }
     }
