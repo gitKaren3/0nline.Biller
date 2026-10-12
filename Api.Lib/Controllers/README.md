@@ -13,9 +13,6 @@ The script reads C# interface files from a configured input directory, detects w
 
 It also generates an abstract **base controller** (`{App}BaseController<T, TKey>`) that all generated controllers inherit from, providing shared routing and a common `GetById` endpoint.
 
-### Tenant Controller Special Case
-
-The `TenantController` is generated with an additional dependency: `_0nline.Auth.Contract.IAuthenticationService`. This is injected via the constructor and exposed as a protected `AuthService` property for use in tenant-related actions that require authentication.
 
 ## How to Run
 
@@ -42,5 +39,5 @@ Generated controllers are written to the `Generated/` subdirectory. Each file in
 ## Important Notes
 
 - **Do not edit files in `Generated/` directly** — they will be overwritten on the next run.
-- To add custom endpoints or override behaviour, create a partial class in a separate file outside the `Generated/` folder.
+- To add custom endpoints or override behaviour, create a partial class in a separate file OUTSIDE the `Generated/` folder, usually in the parent directory.
 - The source of truth for each controller is its corresponding service interface in the configured input directory. Add or modify interfaces there, then re-run the generator.

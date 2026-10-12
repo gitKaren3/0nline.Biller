@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models.db;
-using _0nline.Auth.Contract;
 
 /// This is auto-generated from a template. 
 /// Do not modify this file directly. Instead, create a partial class in a separate file to add custom logic.
@@ -12,11 +11,8 @@ namespace _0nline.Biller.Api.Lib
     {
         protected override ITenantService BaseService { get; } 
 
-        protected IAuthenticationService AuthService { get; }
-
-        public TenantController(ITenantService baseService, IAuthenticationService authService) : base(baseService) {
+        public TenantController(ITenantService baseService) : base(baseService) {
              BaseService = baseService;
-             AuthService = authService;
         }
 
         [HttpPost]

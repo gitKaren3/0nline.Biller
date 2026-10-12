@@ -75,8 +75,6 @@ for file in os.listdir(interface_folder_path):
     sb.append("using Microsoft.AspNetCore.Mvc;")
     sb.append(f"using _0nline.{App}.DL.Contract.Interfaces;")
     sb.append(f"using _0nline.{App}.DL.Contract.Models.db;")
-    if is_tenant:
-        sb.append("using _0nline.Auth.Contract;")
     sb.append("""
 /// This is auto-generated from a template. 
 /// Do not modify this file directly. Instead, create a partial class in a separate file to add custom logic.""")
@@ -87,17 +85,10 @@ for file in os.listdir(interface_folder_path):
     sb.append("    {")
     sb.append(f"        protected override {interface_name} BaseService {{ get; }} ")
     sb.append("")
-    if is_tenant:
-        sb.append("        protected IAuthenticationService AuthService { get; }")
-        sb.append("")
-        sb.append(f"        public {controller_name}({interface_name} baseService, IAuthenticationService authService) : base(baseService) {{")
-        sb.append("             BaseService = baseService;")
-        sb.append("             AuthService = authService;")
-        sb.append("        }")
-    else:
-        sb.append(f"        public {controller_name}({interface_name} baseService) : base(baseService) {{")
-        sb.append("             BaseService = baseService;")
-        sb.append("        }")
+
+    sb.append(f"        public {controller_name}({interface_name} baseService) : base(baseService) {{")
+    sb.append("             BaseService = baseService;")
+    sb.append("        }")
 
     if is_readable:
         sb.append("""

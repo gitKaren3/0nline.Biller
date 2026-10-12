@@ -14,7 +14,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Shared\Auth\Contract\0nline.Shared.Auth.Contract.csproj" />
     <ProjectReference Include="..\DL.Contract\0nline.Biller.DL.Contract.csproj" />
     <ProjectReference Include="..\DL\0nline.Biller.DL.csproj" />
   </ItemGroup>
