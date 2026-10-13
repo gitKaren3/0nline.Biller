@@ -1,4 +1,4 @@
-using _0nline.Auth.Contract;
+using _0nline.Shared.Auth.Contract;
 using _0nline.Shared.Client.Services;
 using _0nline.Shared.Client.Extensions;
 using _0nline.Shared.Client.UI;

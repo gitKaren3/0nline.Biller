@@ -1,8 +1,7 @@
-﻿using _0nline.Auth.Contract;
+﻿using _0nline.Shared.Auth.Contract;
 using _0nline.Shared.Client.Services;
-using Blazored.LocalStorage;
-using Microsoft.AspNetCore.Components;
 using System.Net;
+using Blazored.LocalStorage;
 
 namespace _0nline.Biller.Wasm.Client.Auth
 {
