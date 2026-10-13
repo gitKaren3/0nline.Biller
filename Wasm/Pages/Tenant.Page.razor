@@ -70,9 +70,9 @@ else
             ? await TenantService.GetOneAsync(UserSession.TenantId)
             : await TenantService.GetTenantByUserIdAsync(userId.Value);
 
-        if (result.Successful && result.Value is not null)
+        if (result.Successful && result.Value is Tenant tenant)
         {
-            _tenant = result.Value;
+            _tenant = tenant;
             _onboarding = false;
             UserSession.UpdateTenant(_tenant.ID);
         }

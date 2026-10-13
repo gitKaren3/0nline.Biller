@@ -1,5 +1,6 @@
 using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Contract.Interfaces.DL;
+using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 
 namespace _0nline.Biller.DL.Contract.Interfaces
@@ -8,6 +9,8 @@ namespace _0nline.Biller.DL.Contract.Interfaces
     {
         // Add public tenant-specific methods here if needed
         Task<Result<Tenant>> CreateOrUpdateAsync(Tenant entity);
+
+        Task<Result<TenantRegistrationResult>> RegisterAsync(Tenant entity);
 
         Task<Result<Tenant?>> GetTenantByUserIdAsync(long userId);
     }

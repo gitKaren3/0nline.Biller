@@ -1,6 +1,7 @@
 using _0nline.Shared.Contract.Models;
 using Microsoft.Extensions.Options;
 using _0nline.Biller.DL.Contract.Interfaces;
+using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 
 namespace _0nline.Biller.Wasm.Client.DL
@@ -21,5 +22,8 @@ namespace _0nline.Biller.Wasm.Client.DL
 
         public Task<Result<Tenant>> CreateOrUpdateAsync(Tenant entity)
                 => PostAndHandleAsync<Tenant, Tenant>("createorupdate", entity);
+
+        public Task<Result<TenantRegistrationResult>> RegisterAsync(Tenant entity)
+                => PostAndHandleAsync<Tenant, TenantRegistrationResult>("register", entity);
     }
 }

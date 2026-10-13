@@ -1,14 +1,12 @@
 @using System.ComponentModel.DataAnnotations
 @inject ISnackbar Snackbar
 @inject ITenantService TenantService
-@inject ITierService TierService
 @inject ICompanyService CompanyService
 @inject IImageService ImageService
-@inject IAuthenticationService AuthService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserSession UserSession
 
-@* One screen for both onboarding and editing the profile. *@
+@* There are 2 forms on this page and one button to submit both *@
 
 @if (_loading)
 {
@@ -17,15 +15,15 @@
 else
 {
     <EditForm @ref="_contactForm" Model="@contactmodel" Class="mb-10" >
-        <DataAnnotationsValidator />            
-        <ContactCapture Model="@contactmodel" Title="Contact Details" />              
+        <DataAnnotationsValidator />
+        <ContactCapture Model="@contactmodel" Title="Contact Details" />
     </EditForm>
 
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
         <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="1">
             <MudText Typo="Typo.h6" Color="Color.Primary">Business details</MudText>
-            
+
         </MudStack>
 
         <MudStack Row="true" Spacing="0">
@@ -43,9 +41,9 @@ else
     </MudStack>
 
     <MudCollapse Expanded="_businessExpanded">
-        <EditForm @ref="_businessForm" Model="@companymodel" OnValidSubmit="OnValidSubmit" Class="mt-2">
+        <EditForm @ref="_businessForm" Model="@companymodel" Class="mt-2">
             <DataAnnotationsValidator />
-           
+
             <MudGrid>
                 <MudItem xs="12" sm="8" lg="7" >
                     <MudTextField Label="Business Name" Class="mt-3" ShrinkLabel="true"
@@ -99,11 +97,11 @@ else
                                         FileCleared="onLogoCleared" />
                     </MudPaper>
                 </MudItem>
-                
+
             </MudGrid>
         </EditForm>
     </MudCollapse>
-    
+
     <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                     OnClick="OnSubmit" Disabled="_isSubmitting">
@@ -142,7 +140,7 @@ else
     private Contact contactmodel = new();
     private Company companymodel = new();
     private Company? _removedCompany;
-
+    
     protected override async Task OnInitializedAsync()
     {
         if (Tenant is { ID: > 0 } existing)
@@ -160,10 +158,11 @@ else
             contactmodel = new Contact { UserId = UserSession.UserId, Email = email };
             companymodel = new Company();
 
-            tenantmodel = new Tenant() { 
+            tenantmodel = new Tenant() {
                 UserId = UserSession.UserId,
-                Contact = contactmodel, 
-                Company = companymodel  };
+                Contact = contactmodel,
+                Company = companymodel,
+                TierID = 0};
 
         }
 
@@ -206,61 +205,30 @@ else
     private async Task OnValidSubmit()
     {
         try
-        {
-            var tierresult = await TierService.GetLookupAsync();
-
-            string warnings = string.Empty;
-
-            bool isNew = tenantmodel.ID <= 0;
-            if (isNew && tierresult.Successful)
+        { 
+            var result = await TenantService.RegisterAsync(tenantmodel);
+            if (result.Successful && result.Value is TenantRegistrationResult registration)
             {
-                var tierId = tierresult.Value?.Min(k => k.Key);
-                tenantmodel.TierID = Convert.ToInt16(tierId); 
-            }
+                tenantmodel = registration.Tenant;
+                UserSession.UpdateTenant(tenantmodel.ID);   
 
-            var result = await TenantService.CreateOrUpdateAsync(tenantmodel);
-            if (!result.Successful || result.Value is null)
+                // Refresh the token before anything else: TenancyMiddleware reads the
+                // tenantId claim to resolve the tenant server side.
+                if (!string.IsNullOrEmpty(registration.Token)
+                    && AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
+                   await jwtProvider.NotifyUserAuthenticationAsync(registration.Token);
+
+                if (_logoSelected)
+                   await UpdateUploadedLogo(tenantmodel.Company ?? companymodel);
+                
+                await OnSaved.InvokeAsync(tenantmodel);
+            }
+            else
             {
                 Snackbar.Add(result.Message ?? "Save failed.", Severity.Error);
                 return;
             }
-
-            if (result.Value is Tenant savedtenant)
-            { 
-                UserSession.UpdateTenant(savedtenant.ID);
-
-                // Only a tenant created on this click gets a subscription; a resumed one
-                // must not be subscribed twice.
-                if (isNew)
-                {
-                    var subResult = await AuthService.AddUserSubscriptionAsync(
-                                        userId: UserSession.UserId?.ToString() ?? string.Empty,
-                                        appId: UserSession.AppId,
-                                        tenantId: savedtenant.ID,
-                                        tierId: savedtenant.TierID);
-
-                    if (subResult.IsFailed)
-                    {
-                        Snackbar.Add(subResult.Message ?? "Subscription add failed.", Severity.Error);
-                        return;
-                    }
-
-                    // Refresh the token before anything else: TenancyMiddleware reads the
-                    // tenantId claim to resolve the tenant server side.
-                    if (!string.IsNullOrEmpty(subResult.Value?.Token)
-                        && AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
-                    {
-                        await jwtProvider.NotifyUserAuthenticationAsync(subResult.Value.Token);
-                    }
-                }
-
-                if (_logoSelected)
-                {
-                    await UpdateUploadedLogo(savedtenant.Company ?? companymodel);
-                }
-            }            
-
-            await OnSaved.InvokeAsync(tenantmodel);
+            
         }
         catch (Exception ex)
         {
@@ -289,7 +257,7 @@ else
     private async Task UpdateUploadedLogo(Company company)
     {
         int? OldLogoId = company.LogoImageID;
-        
+
         if (_logoUpload != null && await _logoUpload.UploadAsync() is Image image)
         {
             company.LogoImageID = image.ID;
@@ -298,7 +266,7 @@ else
 
         if (OldLogoId.HasValue)
         {
-            // remove the old logo 
+            // remove the old logo
             var oldLogo = await ImageService.GetOneAsync(OldLogoId.Value);
             if (oldLogo.Successful && oldLogo.Value is { })
             {
@@ -310,8 +278,7 @@ else
             }
         }
     }
-
-
+    
     private void onLogoSelected(string fileName) => _logoSelected = true;
 
     private void onLogoCleared() => _logoSelected = false;

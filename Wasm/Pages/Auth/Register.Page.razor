@@ -1,7 +1,6 @@
 ﻿@page "/register"
 @inject NavigationManager Nav
 @inject IStringLocalizer<LocalResources> Localizer
-@using _0nline.Shared.Client.Components
 @inject ILocalStorageService LocalStorage
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -39,7 +38,7 @@ else
         StateHasChanged();
     }
 
-    private void onLoginRedirect(_0nline.Auth.Contract.LoginRequest request)
+    private void onLoginRedirect(LoginRequest request)
     {
         var message = Localizer["This account already exists"];
         
