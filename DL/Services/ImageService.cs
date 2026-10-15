@@ -15,13 +15,11 @@ namespace _0nline.Biller.DL.Services
     public class ImageService : BillerBaseService<Image>, IImageService, IDLReadableService<Image>, IDLWritableService<Image>
     {
         private readonly IFileStoreService _fileStoreService;
-        private readonly ITenantContext _tenantContext;
 
         public ImageService(IDbContextProvider<BillerDbConfig> ctx, ISqlQueryProvider<Image> queryService, ITenantContext tenantContext, IFileStoreService fileStoreService)
             : base(ctx, queryService, tenantContext)
         {
             _fileStoreService = fileStoreService;
-            _tenantContext = tenantContext;
         }
 
         public new Task<Result<IEnumerable<Image>>> GetAllAsync() => base.GetAllAsync();
@@ -75,7 +73,7 @@ namespace _0nline.Biller.DL.Services
             var image = await GetByIdAsync(imageId);
             if (image != null)
             {
-                string url = image.Url;
+                string url = image?.Url ?? string.Empty;
                 var count = await DeleteAsync(imageId);
                 if (count > 0)
                 {
@@ -97,6 +95,13 @@ namespace _0nline.Biller.DL.Services
             {
                 return Result.NotFound($"Image with ID {imageId} not found.");
             }
+        }
+
+        protected override Image Augment(Image image)
+        {
+            if ( image?.Url != null) 
+                image.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, image.Url);
+            return image!;
         }
 
     }

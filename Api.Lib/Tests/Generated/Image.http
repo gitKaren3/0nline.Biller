@@ -1,14 +1,15 @@
 ### Get Image by ID
-GET https://localhost:5001/api/biller/image/1
+GET https://localhost:7053/api/biller/image/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkthcmVuIFphY2hhciIsInVuaXF1ZV9uYW1lIjoiS2FyZW4gWmFjaGFyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoia2FyZW5AY29ycG9yYXRld2Vic2VydmljZXMuY28uemEiLCJyZXR1cm5VcmwiOiIiLCJhcHAiOiJiaWxsZXIiLCJ0ZW5hbnRJZCI6IjUiLCJzdGF0dXMiOiIxIiwicmVtZW1iZXJNZSI6InRydWUiLCJ0aWVySWQiOiIxIiwiZXhwIjoxNzkxNDgzOTcyLCJpc3MiOiIwbmxpbmUuQXV0aCIsImF1ZCI6IjBubGluZS5BcHAifQ.dDuCxv53mDhDVnAxGIfzKpqjCjCloNwHRdeuwm0FwwI
 
 ### Get all Images
-GET https://localhost:5001/api/biller/image
+GET https://localhost:7053/api/biller/image
 
 ### Lookup Images
-GET https://localhost:5001/api/biller/image/lookup
+GET https://localhost:7053/api/biller/image/lookup
 
 ### Create Image
-POST https://localhost:5001/api/biller/image
+POST https://localhost:7053/api/biller/image
 Content-Type: application/json
 
 {
@@ -20,7 +21,7 @@ Content-Type: application/json
 }
 
 ### Update Image
-PUT https://localhost:5001/api/biller/image
+PUT https://localhost:7053/api/biller/image
 Content-Type: application/json
 
 {
@@ -32,4 +33,8 @@ Content-Type: application/json
 }
 
 ### Delete Image
-DELETE https://localhost:5001/api/biller/image/1
+DELETE https://localhost:7053/api/biller/image/1
+
+### Delete and Remove Image file
+DELETE https://localhost:7053/api/biller/image/remove/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkthcmVuIFphY2hhciIsInVuaXF1ZV9uYW1lIjoiS2FyZW4gWmFjaGFyIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoia2FyZW5AY29ycG9yYXRld2Vic2VydmljZXMuY28uemEiLCJyZXR1cm5VcmwiOiIiLCJhcHAiOiJiaWxsZXIiLCJ0ZW5hbnRJZCI6IjUiLCJzdGF0dXMiOiIxIiwicmVtZW1iZXJNZSI6InRydWUiLCJ0aWVySWQiOiIxIiwiZXhwIjoxNzkxNDg4NDMwLCJpc3MiOiIwbmxpbmUuQXV0aCIsImF1ZCI6IjBubGluZS5BcHAifQ.PH6cqVrb9HvB1wX9HeESX_wSQzv7rbpP4E6ZI72UviU

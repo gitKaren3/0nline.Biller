@@ -28,6 +28,10 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [StringLength(200, ErrorMessage = "Max 200 characters")]
         public string? Caption { get; set; }
 
+        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
+        [Editable(true)]
+        public bool? Public { get; set; }
+
         // Navigation properties
         public Tenant? Tenant { get; set; }
     }

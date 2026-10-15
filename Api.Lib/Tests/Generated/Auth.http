@@ -1,0 +1,10 @@
+### use this to get auth token
+POST https://localhost:7053/api/auth/validate-login
+Content-Type: application/json
+{
+  "AppId" : "biller",
+  "Username" : "karen@corporatewebservices.co.za",
+  "Password" : "Karen@123",
+  "ReturnUrl" : "",
+  "RememberMe" : true
+}

@@ -83,7 +83,7 @@ namespace _0nline.Biller.DL.Services
             {
                 var subResult = await AuthService.AddUserSubscriptionAsync(
                     entity.UserId?.ToString() ?? string.Empty,
-                    _tenancyContext.AppId,
+                    _tenantContext.AppId,
                     savedTenant.ID,
                     savedTenant.TierID);
 
