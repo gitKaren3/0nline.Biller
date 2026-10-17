@@ -16,8 +16,8 @@ namespace _0nline.Biller.DL.Services
         {
         }
 
-        public new Task<Result<IEnumerable<Invoice>>> GetAllAsync() => base.GetAllAsync();
-        public new Task<Result<IDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+        public new Task<Result<Invoice[]>> GetAllAsync() => base.GetAllAsync();
+        public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
         public new Task<Result<Invoice>> CreateAsync(Invoice entity) => base.CreateAsync(entity);
         public new Task<Result<Invoice>> UpdateAsync(Invoice entity) => base.UpdateAsync(entity);

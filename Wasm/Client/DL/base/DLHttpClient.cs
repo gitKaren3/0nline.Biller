@@ -17,11 +17,11 @@ namespace _0nline.Biller.Wasm.Client.DL
         public async Task<Result<T?>> GetOneAsync(int id)
             => await GetAndHandleAsync<T?>($"{id}");
 
-        protected async Task<Result<IEnumerable<T>>> GetAllAsync()
-            => await GetAndHandleAsync<IEnumerable<T>>("");
+        protected async Task<Result<T[]>> GetAllAsync()
+            => await GetAndHandleAsync<T[]>("");
 
-        protected async Task<Result<IDictionary<int, string>>> GetLookupAsync()
-            => await GetAndHandleAsync<IDictionary<int, string>>("lookup");
+        protected async Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync()
+            => await GetAndHandleAsync<IReadOnlyDictionary<int, string>>("lookup");
 
         protected async Task<Result<T>> CreateAsync(T entity)
             => await PostAndHandleAsync<T, T>("", entity);

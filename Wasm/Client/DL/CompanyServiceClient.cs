@@ -13,8 +13,8 @@ namespace _0nline.Biller.Wasm.Client.DL
         {
         }
 
-        public new Task<Result<IEnumerable<Company>>> GetAllAsync() => base.GetAllAsync();
-        public new Task<Result<IDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+        public new Task<Result<Company[]>> GetAllAsync() => base.GetAllAsync();
+        public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
         public new Task<Result<Company>> CreateAsync(Company entity) => base.CreateAsync(entity);
         public new Task<Result<Company?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);

@@ -23,16 +23,16 @@ namespace _0nline.Biller.DL.Services.Base
             return entity != null ? Result<T?>.Success(entity) : Result<T?>.None();
         }
 
-        protected async Task<Result<IEnumerable<T>>> GetAllAsync()
+        protected async Task<Result<T[]>> GetAllAsync()
         {
             var list = await base.GetAllAsync();
-            return Result<IEnumerable<T>>.Success(list);
+            return Result<T[]>.Success(list);
         }
 
-        protected new async Task<Result<IDictionary<int, string>>> GetLookupAsync()
+        protected new async Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync()
         {
             var lookup = await base.GetLookupAsync();
-            return Result<IDictionary<int, string>>.Success(lookup);
+            return Result<IReadOnlyDictionary<int, string>>.Success(lookup);
         }
 
         protected async Task<Result<T>> CreateAsync(T entity)

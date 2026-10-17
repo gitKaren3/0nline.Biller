@@ -14,17 +14,23 @@ namespace _0nline.Biller.DL.Services
 {
     public class TenantService : BillerBaseService<Tenant>, ITenantService, IDLWritableService<Tenant>
     {
-        private IAuthenticationService AuthService { get;}
-        private ITierService TierService { get;  }
+        private IAuthenticationService _authService { get;}
+        private ITierService _tierService { get;  }
+        private IFileStoreService _fileStoreService { get; }
+        private IImageService _imageService { get; }
         public TenantService(IDbContextProvider<BillerDbConfig> ctx 
                             , ISqlQueryProvider<Tenant> queryService
                             , ITierService tierService
                             , IAuthenticationService authService
-                            , ITenantContext tenancyContext)
+                            , ITenantContext tenancyContext
+                            , IImageService imageService
+                            , IFileStoreService fileStoreService)
             : base(ctx, queryService, tenancyContext)
         {
-            AuthService = authService;
-            TierService = tierService;
+            _authService = authService;
+            _tierService = tierService;
+            _fileStoreService = fileStoreService;
+            _imageService = imageService;
         }
   
         public new Task<Result<Tenant>> CreateAsync(Tenant entity) => base.CreateAsync(entity);
@@ -51,7 +57,7 @@ namespace _0nline.Biller.DL.Services
             }
             if (tenant.TierID == 0)
             {
-                var tierresult = await TierService.GetLookupAsync();
+                var tierresult = await _tierService.GetLookupAsync();
                 if (tierresult.Successful && tierresult.Value is IDictionary<int, string> tiers)
                 {
                     short mintier = Convert.ToInt16(tiers.Min(t => t.Key));
@@ -81,7 +87,7 @@ namespace _0nline.Biller.DL.Services
             var result = await CreateOrUpdateAsync(entity);
             if (result.Successful && result.Value is Tenant savedTenant)
             {
-                var subResult = await AuthService.AddUserSubscriptionAsync(
+                var subResult = await _authService.AddUserSubscriptionAsync(
                     entity.UserId?.ToString() ?? string.Empty,
                     _tenantContext.AppId,
                     savedTenant.ID,
@@ -113,7 +119,17 @@ namespace _0nline.Biller.DL.Services
             {
                 return Result<TenantRegistrationResult>.Failure(result.ErrorCode, result.Errors.ToArray());
             }
-            
+        }
+
+        protected override async Task<Tenant> SingleAugment(Tenant tenant)
+        {
+            if (tenant?.Company?.LogoImageID != null)
+            {
+                var result = await _imageService.GetOneAsync(tenant.Company.LogoImageID.Value);
+                if (result.Value is Image logoImage)
+                    tenant.Company.LogoImage = logoImage;
+            }
+            return tenant!;
         }
     }
 }

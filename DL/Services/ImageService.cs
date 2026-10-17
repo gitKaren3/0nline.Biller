@@ -22,8 +22,8 @@ namespace _0nline.Biller.DL.Services
             _fileStoreService = fileStoreService;
         }
 
-        public new Task<Result<IEnumerable<Image>>> GetAllAsync() => base.GetAllAsync();
-        public new Task<Result<IDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+        public new Task<Result<Image[]>> GetAllAsync() => base.GetAllAsync();
+        public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
         public new Task<Result<Image>> CreateAsync(Image entity) => base.CreateAsync(entity);
         public new Task<Result<Image>> UpdateAsync(Image entity) => base.UpdateAsync(entity);
@@ -62,14 +62,14 @@ namespace _0nline.Biller.DL.Services
             {
                 // 3. Cleanup: Delete the file if DB registration fails to avoid orphaned files
                 await _fileStoreService.DeleteAsync(storeResult.RelativePath);
-                
+
                 throw;       // Global exception handling logs and returns a failure result to the caller
             }
         }
 
 
         public async Task<Result> RemoveAndDeRegisterImageAsync(int imageId)
-        { 
+        {
             var image = await GetByIdAsync(imageId);
             if (image != null)
             {
@@ -97,12 +97,24 @@ namespace _0nline.Biller.DL.Services
             }
         }
 
-        protected override Image Augment(Image image)
+        protected override Task<Image> SingleAugment(Image image)
         {
-            if ( image?.Url != null) 
-                image.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, image.Url);
-            return image!;
+            if (image?.Url != null)
+                if (!image.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    image.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, image.Url);
+            return Task.FromResult(image!);
         }
 
+        protected override Task<IEnumerable<Image>> BatchAugment(IEnumerable<Image> images)
+        {
+            foreach (var image in images)
+            {
+                if (!image?.Url?.StartsWith("http", StringComparison.OrdinalIgnoreCase) ?? false)
+                    image!.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, image.Url! );
+            }
+            
+            return Task.FromResult(images);
+
+        }
     }
 }

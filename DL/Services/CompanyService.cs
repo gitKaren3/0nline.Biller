@@ -21,18 +21,18 @@ namespace _0nline.Biller.DL.Services
             _fileStoreService = fileStoreService;
         }
 
-        public new Task<Result<IEnumerable<Company>>> GetAllAsync() => base.GetAllAsync();
-        public new Task<Result<IDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+        public new Task<Result<Company[]>> GetAllAsync() => base.GetAllAsync();
+        public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
         public new Task<Result<Company>> CreateAsync(Company entity) => base.CreateAsync(entity);
         public new Task<Result<Company>> UpdateAsync(Company entity) => base.UpdateAsync(entity);
         public new Task<Result<Company?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
 
-        protected override Company Augment(Company company)
+        protected override Task<Company> SingleAugment(Company company)
         {
             if (company?.LogoImage?.Url != null)
                 company.LogoImage.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, company.LogoImage.Url);
-            return company!;
+            return Task.FromResult(company!);
         }
     }
 }

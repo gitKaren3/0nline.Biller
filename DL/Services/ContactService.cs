@@ -16,8 +16,8 @@ namespace _0nline.Biller.DL.Services
         {
         }
 
-        public new Task<Result<IEnumerable<Contact>>> GetAllAsync() => base.GetAllAsync();
-        public new Task<Result<IDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+        public new Task<Result<Contact[]>> GetAllAsync() => base.GetAllAsync();
+        public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
         public new Task<Result<Contact>> CreateAsync(Contact entity) => base.CreateAsync(entity);
         public new Task<Result<Contact>> UpdateAsync(Contact entity) => base.UpdateAsync(entity);

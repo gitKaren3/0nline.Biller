@@ -20,8 +20,8 @@ namespace _0nline.Biller.Wasm.Client.DL
           
         }
 
-        public new Task<Result<IEnumerable<Image>>> GetAllAsync() => base.GetAllAsync();    
-        public new Task<Result<IDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+        public new Task<Result<Image[]>> GetAllAsync() => base.GetAllAsync();    
+        public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
         public new Task<Result<Image>> CreateAsync(Image entity) => base.CreateAsync(entity);
         public new Task<Result<Image?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
