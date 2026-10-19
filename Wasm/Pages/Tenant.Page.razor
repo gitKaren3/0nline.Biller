@@ -28,12 +28,12 @@ else if (_onboarding)
 {
     <MudText Typo="Typo.h3" Class="py-3 mb-3">Get Started:</MudText>
 
-    <TenantCapture Onboarding="true" Tenant="@_tenant" OnSaved="OnSaved" />
+    <TenantForm Onboarding="true" Tenant="@_tenant" OnSaved="OnSaved" />
 
 }
 else
 {
-    <TenantCapture Tenant="@_tenant" OnSaved="OnSaved" />
+    <TenantForm Tenant="@_tenant" OnSaved="OnSaved" />
 }
 
 

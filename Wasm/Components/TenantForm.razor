@@ -1,0 +1,147 @@
+@using System.ComponentModel.DataAnnotations
+@inject ISnackbar Snackbar
+@inject ITenantService TenantService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserSession UserSession
+
+@* Orchestrates the two-section tenant form: contact + company. *@
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-8 d-block mx-auto" />
+}
+else
+{
+    <EditForm @ref="_contactForm" Model="@contactmodel" Class="mb-10">
+        <DataAnnotationsValidator />
+        <ContactCapture Model="@contactmodel" Title="Contact Details" />
+    </EditForm>
+
+    <CompanyForm @ref="_companyCapture" Model="@companymodel" />
+
+    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                    OnClick="OnSubmit" Disabled="_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <MudText>Busy</MudText>
+            }
+            else
+            {
+                <MudText>@(Onboarding ? "Get started" : "Save")</MudText>
+            }
+        </MudButton>
+    </MudStack>
+}
+
+@code {
+    /// <summary>True for a brand new tenant: drives the wording and the post-save redirect.</summary>
+    [Parameter] public bool Onboarding { get; set; }
+
+    /// <summary>The already-resolved tenant, or null when there isn't one yet.</summary>
+    [Parameter] public Tenant? Tenant { get; set; }
+
+    [Parameter] public EventCallback<Tenant> OnSaved { get; set; }
+
+    private EditForm? _contactForm;
+    private CompanyForm? _companyCapture;
+
+    private bool _loading = true;
+    private bool _isSubmitting;
+
+    private Tenant tenantmodel = new();
+    private Contact contactmodel = new();
+    private Company companymodel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Tenant is { ID: > 0 } existing)
+        {
+            tenantmodel = existing;
+            contactmodel = existing.Contact ?? new Contact();
+            companymodel = existing.Company ?? new Company();
+        }
+        else
+        {
+            var email = await GetIdentityEmailAsync();
+            contactmodel = new Contact { UserId = UserSession.UserId, Email = email };
+            companymodel = new Company();
+
+            tenantmodel = new Tenant() {
+                UserId = UserSession.UserId,
+                Contact = contactmodel,
+                Company = companymodel,
+                TierID = 0};
+        }
+
+        _loading = false;
+    }
+
+    /// <summary>
+    /// The account already knows the signed-in address, so don't ask for it again.
+    /// Only used when it actually looks like an email - Identity.Name may be a display name.
+    /// </summary>
+    private async Task<string?> GetIdentityEmailAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var name = state.User?.Identity?.Name;
+
+        return string.IsNullOrWhiteSpace(name) || !name.Contains('@') ? null : name;
+    }
+
+    private async Task OnSubmit()
+    {
+        if (_isSubmitting) return;
+
+        _isSubmitting = true;
+
+        if (_contactForm != null && _companyCapture?.EditContext != null)
+        {
+            bool allvalid = _contactForm.EditContext.Validate()
+                           & _companyCapture.EditContext.Validate();
+
+            if (allvalid)
+                await OnValidSubmit();
+        }
+
+        _isSubmitting = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            var result = await TenantService.RegisterAsync(tenantmodel);
+            if (result.Successful && result.Value is TenantRegistrationResult registration)
+            {
+                tenantmodel = registration.Tenant;
+                contactmodel = tenantmodel.Contact;
+                companymodel = tenantmodel.Company;
+                UserSession.UpdateTenant(tenantmodel.ID);
+
+                // Refresh the token before anything else: TenancyMiddleware reads the
+                // tenantId claim to resolve the tenant server side.
+                if (!string.IsNullOrEmpty(registration.Token)
+                    && AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
+                    await jwtProvider.NotifyUserAuthenticationAsync(registration.Token);
+
+                // Logo upload happens here — after the tenant exists and the JWT
+                // has been refreshed, so tenantId is available for the Image row.
+                if (_companyCapture != null)
+                    await _companyCapture.CommitLogoAsync();
+
+                await OnSaved.InvokeAsync(tenantmodel);
+            }
+            else
+            {
+                Snackbar.Add(result.Message ?? "Save failed.", Severity.Error);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+    }
+}

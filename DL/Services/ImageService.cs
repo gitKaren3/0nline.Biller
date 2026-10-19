@@ -99,8 +99,8 @@ namespace _0nline.Biller.DL.Services
 
         protected override Task<Image> SingleAugment(Image image)
         {
-            if (image?.Url != null)
-                if (!image.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (image?.Url != null )
+                if (image?.Public == true && !image.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                     image.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, image.Url);
             return Task.FromResult(image!);
         }
@@ -109,12 +109,12 @@ namespace _0nline.Biller.DL.Services
         {
             foreach (var image in images)
             {
-                if (!image?.Url?.StartsWith("http", StringComparison.OrdinalIgnoreCase) ?? false)
+                if (image?.Public == true 
+                    && (!image?.Url?.StartsWith("http", StringComparison.OrdinalIgnoreCase) ?? false))
                     image!.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, image.Url! );
             }
             
             return Task.FromResult(images);
-
         }
     }
 }

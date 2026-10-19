@@ -1,0 +1,147 @@
+
+@inject ICompanyService CompanyService
+@inject IImageService ImageService
+@inject IConfiguration Config
+@using System.ComponentModel.DataAnnotations
+
+@* Reusable company form — owns the company fields, the logo lifecycle, and the EditContext *@
+@* so a host can render it inside any EditForm and still validate it. *@
+
+<MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">Business details</MudText>
+
+<EditForm @ref="_form" Model="@Model" Class="mt-2">
+    <DataAnnotationsValidator />
+
+    <MudGrid>
+        <MudItem xs="12" sm="8" lg="7">
+            <MudTextField Label="Business Name" Class="mt-3" ShrinkLabel="true"
+                            @bind-Value="Model.Name" For="@(() => Model.Name)" />
+        </MudItem>
+
+        <MudItem xs="6" sm="4" lg="3">
+            <MudTextField Label="Registration Number" Class="mt-3" ShrinkLabel="true"
+                            @bind-Value="Model.Registration" For="@(() => Model.Registration)" />
+        </MudItem>
+
+        <MudItem xs="12" md="8">
+            <MudTextField Label="Address" Class="mt-3" Lines="3" ShrinkLabel="true"
+                            @bind-Value="Model.Address" For="@(() => Model.Address)" />
+        </MudItem>
+
+        <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudTextField Label="City" Class="mt-3" ShrinkLabel="true"
+                            @bind-Value="Model.AddressCity" For="@(() => Model.AddressCity)" />
+        </MudItem>
+
+        <MudItem xs="6" md="2">
+            <MudTextField Label="Postal Code" Class="mt-3" ShrinkLabel="true"
+                            @bind-Value="Model.AddressCode" For="@(() => Model.AddressCode)" />
+        </MudItem>
+
+        <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
+
+        <MudItem xs="12" md="7" lg="5">
+            <MudTextField Label="Country" Class="mt-3" ShrinkLabel="true"
+                            @bind-Value="Model.AddressCountry" For="@(() => Model.AddressCountry)" />
+        </MudItem>
+
+        <MudItem xs="6" md="5" lg="5" Class="mt-3">
+            <PhoneNumberField @bind-Value="Model.PhoneNo"
+                Label="Business Phone"
+                For="@(() => Model.PhoneNo)" />
+        </MudItem>
+
+        <MudItem xs="12" sm="12" md="10" lg="5" Class="mt-3">
+            <MudText>Business Logo</MudText>
+
+            @if ( _showUpload || Model.LogoImageID == null )
+            {
+                 <MudStack Row="true" Spacing="2" Class="mb-2" Justify="Justify.FlexEnd">
+                    @if (Model.LogoImageID != null)
+                    {
+                        <MudButton OnClick="@(() => _showUpload = false)" StartIcon="@Icons.Material.Filled.Clear">
+                            <span>Cancel</span>
+                        </MudButton>
+                    }
+                 </MudStack>
+                 <MudPaper Class="pa-6 ma-2" Outlined="true">
+                    <ImageUpload @ref="_logoUpload" T="Image"
+                                    Category="Logo" Caption="My Business Logo"
+                                    FileSelected="OnLogoSelected"
+                                    FileCleared="OnLogoCleared" />
+                </MudPaper>
+            }
+            else
+            {
+               <MudStack Row="true" Spacing="2" Class="mb-2" Justify="Justify.FlexEnd">
+                    <MudButton OnClick="ShowUploader" StartIcon="@Icons.Material.Filled.SwapHoriz">Replace</MudButton>
+                    <MudButton OnClick="RemoveLogo" StartIcon="@Icons.Material.Filled.Delete">Remove</MudButton>
+               </MudStack>
+               <MudPaper Class="pa-6 ma-2" Outlined="true">
+
+                    <MudImage Src="@Model.LogoImage?.ResolvedUrl" Style="width:100%;" />
+                </MudPaper>
+            }
+        </MudItem>
+    </MudGrid>
+</EditForm>
+
+@code {
+    /// <summary>The company being edited. Two-way bound so the host can read the result.</summary>
+    [Parameter, EditorRequired] public Company Model { get; set; } = default!;
+
+    private EditForm? _form;
+    private ImageUpload<Image>? _logoUpload;
+
+    private bool _showUpload;
+    private bool _logoSelected;
+
+    /// <summary>Exposes the EditContext so a host can validate this form alongside others.</summary>
+    public EditContext? EditContext => _form?.EditContext;
+
+    /// <summary>
+    /// Called by the host AFTER the tenant is registered and the JWT is refreshed.
+    /// Uploads the logo (now that tenantId is available), updates the company,
+    /// and cleans up any replaced/removed logo file.
+    /// </summary>
+    public async Task<bool> CommitLogoAsync()
+    {
+        int? oldLogoId = Model.LogoImageID;
+
+        if (_logoSelected && _logoUpload != null && await _logoUpload.UploadAsync() is Image image)
+        {
+            Model.LogoImageID = image.ID;
+            await CompanyService.UpdateAsync(Model);
+        }
+
+        if (oldLogoId.HasValue && oldLogoId != Model.LogoImageID)
+        {
+            var oldLogo = await ImageService.GetOneAsync(oldLogoId.Value);
+            if (oldLogo.Successful && oldLogo.Value is { })
+                await ImageService.DeleteOrDeactivateAsync(oldLogo.Value.ID);
+        }
+
+        return true;
+    }
+
+    protected override void OnParametersSet()
+    {
+        _showUpload = Model.LogoImageID is not int id || id == 0;
+    }
+
+    private void ShowUploader() => _showUpload = true;
+
+    private void RemoveLogo()
+    {
+        Model.LogoImageID = null;
+        _logoSelected = false;
+        _showUpload = true;
+    }
+
+    private void OnLogoSelected(string fileName) => _logoSelected = true;
+
+    private void OnLogoCleared() => _logoSelected = false;
+
+}
