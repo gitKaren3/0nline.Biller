@@ -1,0 +1,22 @@
+# Binaries: never normalise line endings, never treat as text.
+*.dll binary
+*.pdb binary
+*.exe binary
+*.nupkg binary
+*.wasm binary
+*.gz binary
+*.br binary
+*.db binary
+*.vsidx binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.woff binary
+*.woff2 binary
+
+# Line-ending normalisation is deliberately NOT enabled yet. The tree still has CRLF
+# files tracked from a Windows editor round-trip, so switching on `text=auto` would
+# renormalise them all in one commit and bury the real change. Do it separately, when
+# nothing else is in flight, with `git add --renormalize .`.
