@@ -29,7 +29,7 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<Image>> UpdateAsync(Image entity) => base.UpdateAsync(entity);
         public new Task<Result<Image?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
 
-        public async Task<Result<Image>> UploadAndRegisterImageAsync(IFormFile file, string category, string caption)
+        public async Task<Result<Image>> UploadAndRegisterImageAsync(IFormFile file, string category, string caption, bool ispublic)
         {
             var tenantId = _tenantContext.TenantId;
             var appId = _tenantContext.AppId;
@@ -43,20 +43,23 @@ namespace _0nline.Biller.DL.Services
             if (category != string.Empty) subdir += $"/{category}";
 
             // 1. Save physical file using the shared service (public for direct browser access)
-            var storeResult = await _fileStoreService.SaveAsync(file, appId, tenantId.Value, subdir, isPublic: true);
+            var storeResult = await _fileStoreService.SaveAsync(file, appId, tenantId.Value, subdir, isPublic: ispublic);
 
             // 2. Create DB record
             var image = new Image
             {
                 TenantID = tenantId,
                 Url = storeResult.RelativePath,
-                Caption = caption
+                Caption = caption,
+                Public = ispublic
             };
 
             try
             {
                 int count = await AddAsync(image);
-                return Result<Image>.Success(image);
+                // Augment so the client can render the logo immediately; ResolvedUrl is
+                // computed on read, and the upload response is the only read the client gets.
+                return Result<Image>.Success(await SingleAugment(image));
             }
             catch (Exception)
             {

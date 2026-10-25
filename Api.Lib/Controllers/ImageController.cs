@@ -11,12 +11,13 @@ namespace _0nline.Biller.Api.Lib
     {
       
         [HttpPost("upload")]
-        public async Task<IActionResult> Upload([FromForm] IFormFile file, [FromForm] string? category, [FromForm] string? caption)
+        public async Task<IActionResult> Upload([FromForm] IFormFile file, [FromForm] string? category, [FromForm] string? caption, [FromForm] bool ispublic)
         {
+            Console.WriteLine($"API upload endpoint reached.Received file: {file?.FileName}, Category: {category}, Caption: {caption}, IsPublic: {ispublic}");
             if (file == null || file.Length == 0)
                 throw new ArgumentNullException("No file uploaded.");
                 
-            var result = await BaseService.UploadAndRegisterImageAsync(file, category ?? string.Empty, caption ?? string.Empty);
+            var result = await BaseService.UploadAndRegisterImageAsync(file, category ?? string.Empty, caption ?? string.Empty, ispublic);
             return Ok(result);
         }
 

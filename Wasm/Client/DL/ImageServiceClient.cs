@@ -28,7 +28,7 @@ namespace _0nline.Biller.Wasm.Client.DL
         public new Task<Result<Image>> UpdateAsync(Image entity) => base.UpdateAsync(entity);
 
 
-        public Task<Result<Image>> UploadAndRegisterImageAsync(IFormFile file, string category, string caption)
+        public Task<Result<Image>> UploadAndRegisterImageAsync(IFormFile file, string category, string caption, bool ispublic)
         {
             throw new NotImplementedException();   // Server side implementation is not available in the client project. Use UploadFileAsync instead.
         }
@@ -42,7 +42,7 @@ namespace _0nline.Biller.Wasm.Client.DL
             var fileContent = new StreamContent(fileStream);
             fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.File.ContentType);
 
-            content.Add(fileContent, "file", request.File.Name);
+            content.Add(fileContent, "file", Path.GetFileName(request.File.Name));
 
             // the controller signature must have both category and caption as nullable:
             if (!string.IsNullOrEmpty(request.Category))
@@ -51,12 +51,13 @@ namespace _0nline.Biller.Wasm.Client.DL
             if (!string.IsNullOrEmpty(request.Caption))
                 content.Add(new StringContent(request.Caption), "caption");
 
-
-            // Call the Biller-specific endpoint
-            var response = await Http.PostAsync("upload", content);
+            content.Add(new StringContent(request.Public ? "true" : "false"), "ispublic");
 
             try
             {
+                // Call the Biller-specific endpoint
+                var response = await Http.PostAsync("upload", content);
+
                 var result = await response.Content.ReadFromJsonAsync<Result<Image>>();
                 if (result != null)
                     return result;

@@ -1,11 +1,9 @@
-
-@inject ICompanyService CompanyService
 @inject IImageService ImageService
-@inject IConfiguration Config
-@using System.ComponentModel.DataAnnotations
+
 
 @* Reusable company form — owns the company fields, the logo lifecycle, and the EditContext *@
 @* so a host can render it inside any EditForm and still validate it. *@
+@* Parent saves company record *@
 
 <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">Business details</MudText>
 
@@ -61,7 +59,7 @@
                  <MudStack Row="true" Spacing="2" Class="mb-2" Justify="Justify.FlexEnd">
                     @if (Model.LogoImageID != null)
                     {
-                        <MudButton OnClick="@(() => _showUpload = false)" StartIcon="@Icons.Material.Filled.Clear">
+                        <MudButton OnClick="CancelReplace" StartIcon="@Icons.Material.Filled.Clear">
                             <span>Cancel</span>
                         </MudButton>
                     }
@@ -98,6 +96,14 @@
     private bool _showUpload;
     private bool _logoSelected;
 
+    /// <summary>
+    /// The model instance the picker state was derived from. Re-deriving the state on every
+    /// parameter set used to tear the picker down when the host re-rendered (TenantForm flips
+    /// _isSubmitting while saving, before it calls CommitLogoAsync) and the selected file was
+    /// lost, so the upload was skipped silently. Only reset when the model itself changes.
+    /// </summary>
+    private Company? _stateModel;
+
     /// <summary>Exposes the EditContext so a host can validate this form alongside others.</summary>
     public EditContext? EditContext => _form?.EditContext;
 
@@ -110,17 +116,32 @@
     {
         int? oldLogoId = Model.LogoImageID;
 
-        if (_logoSelected && _logoUpload != null && await _logoUpload.UploadAsync() is Image image)
+        if (_logoSelected)
         {
-            Model.LogoImageID = image.ID;
-            await CompanyService.UpdateAsync(Model);
+            if (_logoUpload == null)
+            {
+                // The picker is gone, so the file the user chose is gone with it. Fail loudly:
+                // returning success here persists a company pointing at a logo never uploaded.
+                return false;
+            }
+
+            if (await _logoUpload.UploadAsync() is Image image)
+            {
+                Model.LogoImageID = image.ID;
+                Model.LogoImage = image;
+                _logoSelected = false;
+                _showUpload = false;
+                StateHasChanged();
+            }
+            else
+            {
+                return false;
+            }
         }
 
         if (oldLogoId.HasValue && oldLogoId != Model.LogoImageID)
         {
-            var oldLogo = await ImageService.GetOneAsync(oldLogoId.Value);
-            if (oldLogo.Successful && oldLogo.Value is { })
-                await ImageService.DeleteOrDeactivateAsync(oldLogo.Value.ID);
+            await ImageService.DeleteOrDeactivateAsync(oldLogoId.Value);
         }
 
         return true;
@@ -128,10 +149,20 @@
 
     protected override void OnParametersSet()
     {
+        if (ReferenceEquals(_stateModel, Model)) return;
+
+        _stateModel = Model;
         _showUpload = Model.LogoImageID is not int id || id == 0;
+        _logoSelected = false;
     }
 
     private void ShowUploader() => _showUpload = true;
+
+    private void CancelReplace()
+    {
+        _showUpload = false;
+        _logoSelected = false;
+    }
 
     private void RemoveLogo()
     {

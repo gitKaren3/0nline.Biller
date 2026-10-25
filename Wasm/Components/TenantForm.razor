@@ -112,12 +112,14 @@ else
     {
         try
         {
+            tenantmodel.Company = null;  // save tenant + contact first
+            tenantmodel.Contact = contactmodel;
             var result = await TenantService.RegisterAsync(tenantmodel);
             if (result.Successful && result.Value is TenantRegistrationResult registration)
             {
                 tenantmodel = registration.Tenant;
-                contactmodel = tenantmodel.Contact;
-                companymodel = tenantmodel.Company;
+                if (tenantmodel.Contact != null) contactmodel = tenantmodel.Contact;
+
                 UserSession.UpdateTenant(tenantmodel.ID);
 
                 // Refresh the token before anything else: TenancyMiddleware reads the
@@ -129,7 +131,15 @@ else
                 // Logo upload happens here — after the tenant exists and the JWT
                 // has been refreshed, so tenantId is available for the Image row.
                 if (_companyCapture != null)
-                    await _companyCapture.CommitLogoAsync();
+                { 
+                    if (!await _companyCapture.CommitLogoAsync())
+                    {
+                        Snackbar.Add("Company Logo upload failed.", Severity.Warning);
+                    }
+                    tenantmodel.Contact = null;
+                    tenantmodel.Company = companymodel;  // save tenant with new / updated company
+                    await TenantService.UpdateAsync(tenantmodel);
+                }
 
                 await OnSaved.InvokeAsync(tenantmodel);
             }
