@@ -16,7 +16,6 @@ namespace _0nline.Biller.DL.Contract.Models.db
         public int ID { get; set; } = 0;
 
         [Editable(true)]
-        [Required(ErrorMessage = "Required")]
         public long? UserId { get; set; }
 
         [Editable(true)]
@@ -26,8 +25,7 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         [Editable(true)]
         [ForeignKey("Contact")]
-        [Required(ErrorMessage = "Required")]
-        public int ContactID { get; set; } = 0;
+        public int? ContactID { get; set; }
 
         [Editable(true)]
         [ForeignKey("Company")]

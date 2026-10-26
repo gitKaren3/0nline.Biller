@@ -64,7 +64,7 @@ namespace _0nline.Biller.DL.Services
             catch (Exception)
             {
                 // 3. Cleanup: Delete the file if DB registration fails to avoid orphaned files
-                await _fileStoreService.DeleteAsync(storeResult.RelativePath);
+                await _fileStoreService.DeleteAsync(StorePath(storeResult.RelativePath), isPublic: ispublic);
 
                 throw;       // Global exception handling logs and returns a failure result to the caller
             }
@@ -77,10 +77,14 @@ namespace _0nline.Biller.DL.Services
             if (image != null)
             {
                 string url = image?.Url ?? string.Empty;
+                bool isPublic = image?.Public == true;
                 var count = await DeleteAsync(imageId);
                 if (count > 0)
                 {
-                    bool success = await _fileStoreService.DeleteAsync(url, isPublic: true);
+                    // FileStoreService stores under <base>/<appId>/<relativePath>,
+                    // so the app segment is part of the delete path even though it
+                    // is not part of the URL-shaped value on the row.
+                    bool success = await _fileStoreService.DeleteAsync(StorePath(url), isPublic);
 
                     if (success)
                     {
@@ -99,6 +103,11 @@ namespace _0nline.Biller.DL.Services
                 return Result.NotFound($"Image with ID {imageId} not found.");
             }
         }
+
+        private string StorePath(string relativePath)
+            => string.IsNullOrEmpty(_tenantContext.AppId)
+                ? relativePath
+                : $"{_tenantContext.AppId}/{relativePath.TrimStart('/', '\\')}";
 
         protected override Task<Image> SingleAugment(Image image)
         {

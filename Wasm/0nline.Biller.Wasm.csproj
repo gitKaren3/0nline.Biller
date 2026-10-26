@@ -31,4 +31,6 @@
     <Folder Include="Resources\" />
   </ItemGroup>
 
+  <ProjectExtensions><VisualStudio><UserProperties properties_4launchsettings_1json__JsonSchema="https://aaes.ai/spec/v2/export.schema.json" /></VisualStudio></ProjectExtensions>
+
 </Project>

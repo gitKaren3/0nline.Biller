@@ -1,6 +1,8 @@
 @using System.ComponentModel.DataAnnotations
 @inject ISnackbar Snackbar
 @inject ITenantService TenantService
+@inject IContactService ContactService
+@inject ICompanyService CompanyService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserSession UserSession
 
@@ -36,10 +38,10 @@ else
 }
 
 @code {
-    /// <summary>True for a brand new tenant: drives the wording and the post-save redirect.</summary>
+    /// <summary>True while the tenant has no attached contact or company.</summary>
     [Parameter] public bool Onboarding { get; set; }
 
-    /// <summary>The already-resolved tenant, or null when there isn't one yet.</summary>
+    /// <summary>The tenant created by the ensure step.</summary>
     [Parameter] public Tenant? Tenant { get; set; }
 
     [Parameter] public EventCallback<Tenant> OnSaved { get; set; }
@@ -59,20 +61,22 @@ else
         if (Tenant is { ID: > 0 } existing)
         {
             tenantmodel = existing;
-            contactmodel = existing.Contact ?? new Contact();
+            contactmodel = existing.Contact ?? new Contact { UserId = UserSession.UserId };
             companymodel = existing.Company ?? new Company();
+
+            if (string.IsNullOrWhiteSpace(contactmodel.Email))
+                contactmodel.Email = await GetIdentityEmailAsync();
         }
         else
         {
-            var email = await GetIdentityEmailAsync();
-            contactmodel = new Contact { UserId = UserSession.UserId, Email = email };
-            companymodel = new Company();
-
-            tenantmodel = new Tenant() {
+            // The page only renders the form after ensure; this is a safety net.
+            contactmodel = new Contact
+            {
                 UserId = UserSession.UserId,
-                Contact = contactmodel,
-                Company = companymodel,
-                TierID = 0};
+                Email = await GetIdentityEmailAsync()
+            };
+            companymodel = new Company();
+            tenantmodel = new Tenant { UserId = UserSession.UserId };
         }
 
         _loading = false;
@@ -96,10 +100,10 @@ else
 
         _isSubmitting = true;
 
-        if (_contactForm != null && _companyCapture?.EditContext != null)
+        if (_contactForm?.EditContext is { } contactContext
+            && _companyCapture?.EditContext is { } companyContext)
         {
-            bool allvalid = _contactForm.EditContext.Validate()
-                           & _companyCapture.EditContext.Validate();
+            bool allvalid = contactContext.Validate() & companyContext.Validate();
 
             if (allvalid)
                 await OnValidSubmit();
@@ -112,46 +116,75 @@ else
     {
         try
         {
-            tenantmodel.Company = null;  // save tenant + contact first
-            tenantmodel.Contact = contactmodel;
-            var result = await TenantService.RegisterAsync(tenantmodel);
-            if (result.Successful && result.Value is TenantRegistrationResult registration)
+            if (tenantmodel.ID <= 0)
             {
-                tenantmodel = registration.Tenant;
-                if (tenantmodel.Contact != null) contactmodel = tenantmodel.Contact;
-
-                UserSession.UpdateTenant(tenantmodel.ID);
-
-                // Refresh the token before anything else: TenancyMiddleware reads the
-                // tenantId claim to resolve the tenant server side.
-                if (!string.IsNullOrEmpty(registration.Token)
-                    && AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
-                    await jwtProvider.NotifyUserAuthenticationAsync(registration.Token);
-
-                // Logo upload happens here — after the tenant exists and the JWT
-                // has been refreshed, so tenantId is available for the Image row.
-                if (_companyCapture != null)
-                { 
-                    if (!await _companyCapture.CommitLogoAsync())
-                    {
-                        Snackbar.Add("Company Logo upload failed.", Severity.Warning);
-                    }
-                    tenantmodel.Contact = null;
-                    tenantmodel.Company = companymodel;  // save tenant with new / updated company
-                    await TenantService.UpdateAsync(tenantmodel);
-                }
-
-                await OnSaved.InvokeAsync(tenantmodel);
-            }
-            else
-            {
-                Snackbar.Add(result.Message ?? "Save failed.", Severity.Error);
+                Snackbar.Add("The workspace is not ready yet. Reload the page.", Severity.Error);
                 return;
             }
+
+            // The logo must be uploaded before the company row is written: the
+            // upload sets LogoImageID on the model. The token already carries
+            // the tenant id because ensure ran on page load.
+            if (_companyCapture != null && !await _companyCapture.CommitLogoAsync())
+            {
+                Snackbar.Add(
+                    "Company logo upload failed, so nothing was saved. Reselect the logo and try again.",
+                    Severity.Error);
+                return;
+            }
+
+            var contactSave = contactmodel.ID > 0
+                ? await ContactService.UpdateAsync(contactmodel)
+                : await ContactService.CreateAsync(contactmodel);
+
+            if (!contactSave.Successful || contactSave.Value is not Contact savedContact)
+            {
+                Snackbar.Add(Describe(contactSave, "Contact details could not be saved."), Severity.Error);
+                return;
+            }
+            contactmodel = savedContact;
+
+            var companySave = companymodel.ID > 0
+                ? await CompanyService.UpdateAsync(companymodel)
+                : await CompanyService.CreateAsync(companymodel);
+
+            if (!companySave.Successful || companySave.Value is not Company savedCompany)
+            {
+                Snackbar.Add(Describe(companySave, "Company details could not be saved."), Severity.Error);
+                return;
+            }
+
+            // The update response carries LogoImageID but not the navigation
+            // object, so keep the image the upload already resolved.
+            savedCompany.LogoImage ??= companymodel.LogoImage;
+
+            // The company row now points at the new (or no) logo, so the old image
+            // is finally safe to retire.
+            if (_companyCapture != null)
+                await _companyCapture.FinalizeLogoAsync();
+
+            companymodel = savedCompany;
+
+            // Point the tenant at the rows it just saved. The server verifies that
+            // both belong to this tenant; the client cannot attach someone else's.
+            var attach = await TenantService.AttachProfileAsync(savedContact.ID, savedCompany.ID);
+            if (!attach.Successful || attach.Value is not Tenant savedTenant)
+            {
+                Snackbar.Add(Describe(attach, "The profile could not be attached to the workspace."), Severity.Error);
+                return;
+            }
+
+            tenantmodel = savedTenant;
+            UserSession.UpdateTenant(savedTenant.ID);
+            await OnSaved.InvokeAsync(savedTenant);
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
         }
     }
+
+    private static string Describe(Result result, string fallback)
+        => result.Errors.FirstOrDefault()
+            ?? (!string.IsNullOrWhiteSpace(result.Message) ? result.Message : fallback);
 }

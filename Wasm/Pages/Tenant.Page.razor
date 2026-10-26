@@ -1,8 +1,10 @@
 ﻿@page "/tenant"
 @using _0nline.Biller.Wasm.Components
+@using _0nline.Biller.DL.Contract.Models
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject ITenantService TenantService
+@inject AuthenticationStateProvider AuthStateProvider
 @inject UserSession UserSession
 
 <AuthorizeView>
@@ -45,69 +47,127 @@ else
     private Tenant? _tenant;
 
     /// <summary>
-    /// The screen is chosen by what exists for this user, not by the session's tenant id -
-    /// a registration abandoned before the token was refreshed comes back as a profile
-    /// rather than starting the user over.
-    /// A failed lookup is deliberately not treated as "no tenant": that would offer a
-    /// returning user a second registration, and the subscription insert is not idempotent.
+    /// The tenant is created on first login (ensure), so "onboarding" is now a
+    /// profile question: has the tenant been pointed at its own contact and
+    /// company yet?
     /// </summary>
     protected override async Task OnInitializedAsync()
     {
+        _loading = true;
         _loadError = null;
         _tenant = null;
 
-        var userId = UserSession.UserId;
-
-        if (!userId.HasValue)
+        if (!UserSession.UserId.HasValue)
         {
-            // <AuthorizeView> is already redirecting; just don't render the form.
-            _onboarding = true;
+            // <AuthorizeView> is already redirecting; don't render a form with no tenant.
+            _loadError = "Please sign in to continue.";
             _loading = false;
             return;
         }
 
-        var result = UserSession.TenantId > 0
-            ? await TenantService.GetOneAsync(UserSession.TenantId)
-            : await TenantService.GetTenantByUserIdAsync(userId.Value);
-
-        if (result.Successful && result.Value is Tenant tenant)
+        if (UserSession.TenantId > 0)
         {
-            _tenant = tenant;
-            _onboarding = false;
-            UserSession.UpdateTenant(_tenant.ID);
-        }
-        else if (result.IsNone)
-        {
-            // genuinely nothing on file
-            _onboarding = true;
+            var result = await TenantService.GetOneAsync(UserSession.TenantId);
 
-            // the session may still be pointing at a tenant that no longer exists
-            if (UserSession.TenantId > 0)
+            if (result.Successful && result.Value is Tenant existing)
+            {
+                SetTenant(existing);
+            }
+            else if (result.IsNone || result.ErrorCode == ErrorCode.Unauthorized)
+            {
+                // The session may still be pointing at a tenant that no longer
+                // exists or was closed. Clear it and let ensure start a new one.
                 UserSession.UpdateTenant(0);
+            }
+            else
+            {
+                _loadError = Describe(result);
+            }
         }
-        else
+
+        if (_tenant == null && _loadError == null)
         {
-            _loadError = string.IsNullOrWhiteSpace(result.Message)
-                ? "We could not load your profile. Please try again."
-                : result.Message;
+            // First login, or a session without a tenantId claim: create the
+            // minimal tenant and get a token that carries it.
+            var ensured = await TenantService.EnsureAsync();
+
+            if (ensured.Successful && ensured.Value is TenantRegistrationResult registration)
+            {
+                // A form whose writes would be rejected for a missing tenantId
+                // claim is worse than an explicit retry.
+                if (string.IsNullOrEmpty(registration.Token) && UserSession.TenantId <= 0)
+                {
+                    _loadError = "Your session could not be linked to a workspace. Please sign in again.";
+                    _loading = false;
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(registration.Token)
+                    && AuthStateProvider is _0nline.Biller.Wasm.Client.Auth.JwtAuthStateProvider jwtProvider)
+                {
+                    await jwtProvider.NotifyUserAuthenticationAsync(registration.Token);
+                }
+
+                // Re-read with the new token so the logo/image augment runs; the
+                // ensure response was loaded without a tenant claim.
+                var loaded = await TenantService.GetOneAsync(registration.Tenant.ID);
+                if (loaded.Successful && loaded.Value is Tenant augmented)
+                    SetTenant(augmented);
+                else
+                    SetTenant(registration.Tenant);
+            }
+            else if (ensured.IsNone)
+            {
+                // A tenant is created on first login, so "no tenant" is an error,
+                // not an onboarding state. The form needs a real tenant id.
+                _loadError = "Your workspace could not be created. Please try again.";
+            }
+            else
+            {
+                _loadError = Describe(ensured);
+            }
         }
 
         _loading = false;
     }
 
-    private async Task Reload() => await OnInitializedAsync();
+    private void SetTenant(Tenant tenant)
+    {
+        _tenant = tenant;
+        UserSession.UpdateTenant(tenant.ID);
+        _onboarding = tenant.ContactID is null || tenant.CompanyID is null;
+    }
+
+    private static string Describe(Result result)
+        => result.Errors.FirstOrDefault()
+            ?? (!string.IsNullOrWhiteSpace(result.Message)
+                ? result.Message
+                : "We could not load your profile. Please try again.");
+
+    private async Task Reload()
+    {
+        _loading = true;
+        StateHasChanged();
+        await OnInitializedAsync();
+    }
 
     private void OnSaved(Tenant tenant)
     {
+        bool wasOnboarding = _onboarding;
+
+        _tenant = tenant;
+        _onboarding = tenant.ContactID is null || tenant.CompanyID is null;
+
         if (_onboarding)
         {
-            Snackbar.Add("Tenant registration completed successfully.", Severity.Success);
-            Nav.NavigateTo("/");
+            Snackbar.Add("Profile saved, but it is not attached to the workspace yet.", Severity.Warning);
         }
         else
         {
-            // Stay on the profile - a failed save must never bounce the user to the home page.
             Snackbar.Add("Tenant profile saved successfully.", Severity.Success);
+
+            if (wasOnboarding)
+                Nav.NavigateTo("/");
         }
     }
 }

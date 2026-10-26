@@ -97,6 +97,20 @@
     private bool _logoSelected;
 
     /// <summary>
+    /// A logo the user removed but whose Image row still exists server side. Carried until the
+    /// commit succeeds so "Remove" doesn't leave an orphaned image behind.
+    /// </summary>
+    private int? _removedLogoId;
+
+    /// <summary>
+    /// Images the company used to point at. They are only retired after the company save
+    /// succeeds: deleting them during the upload would leave the stored row pointing at a
+    /// dead image if the save failed. A set because a failed save can be retried after a
+    /// second replacement.
+    /// </summary>
+    private readonly HashSet<int> _pendingLogoCleanup = new();
+
+    /// <summary>
     /// The model instance the picker state was derived from. Re-deriving the state on every
     /// parameter set used to tear the picker down when the host re-rendered (TenantForm flips
     /// _isSubmitting while saving, before it calls CommitLogoAsync) and the selected file was
@@ -109,12 +123,14 @@
 
     /// <summary>
     /// Called by the host AFTER the tenant is registered and the JWT is refreshed.
-    /// Uploads the logo (now that tenantId is available), updates the company,
-    /// and cleans up any replaced/removed logo file.
+    /// Uploads the logo (now that tenantId is available) and records any replaced or
+    /// removed image. Nothing is retired yet: the host calls <see cref="FinalizeLogoAsync"/>
+    /// once the company row has actually been saved.
     /// </summary>
     public async Task<bool> CommitLogoAsync()
     {
-        int? oldLogoId = Model.LogoImageID;
+        int? oldLogoId = _removedLogoId ?? Model.LogoImageID;
+        bool uploaded = true;
 
         if (_logoSelected)
         {
@@ -135,16 +151,42 @@
             }
             else
             {
-                return false;
+                uploaded = false;
             }
         }
 
-        if (oldLogoId.HasValue && oldLogoId != Model.LogoImageID)
-        {
-            await ImageService.DeleteOrDeactivateAsync(oldLogoId.Value);
-        }
+        if (uploaded && oldLogoId.HasValue && oldLogoId != Model.LogoImageID)
+            _pendingLogoCleanup.Add(oldLogoId.Value);
 
-        return true;
+        return uploaded;
+    }
+
+    /// <summary>
+    /// Retires the images the company no longer points at. Call this only after the company
+    /// save succeeded; a failed save leaves the old image referenced and must not delete it.
+    /// </summary>
+    public async Task FinalizeLogoAsync()
+    {
+        if (_pendingLogoCleanup.Count == 0) return;
+
+        int[] pending = _pendingLogoCleanup.ToArray();
+        _pendingLogoCleanup.Clear();
+        _removedLogoId = null;
+
+        foreach (int imageId in pending)
+        {
+            // Remove the row and the file. A failure (already gone, still
+            // referenced elsewhere) must not turn a completed company save into
+            // a failed request; the worst case is an orphaned image.
+            try
+            {
+                await ImageService.RemoveAndDeRegisterImageAsync(imageId);
+            }
+            catch
+            {
+                // Cleanup is best-effort.
+            }
+        }
     }
 
     protected override void OnParametersSet()
@@ -152,6 +194,8 @@
         if (ReferenceEquals(_stateModel, Model)) return;
 
         _stateModel = Model;
+        _removedLogoId = null;
+        _pendingLogoCleanup.Clear();
         _showUpload = Model.LogoImageID is not int id || id == 0;
         _logoSelected = false;
     }
@@ -166,7 +210,9 @@
 
     private void RemoveLogo()
     {
+        _removedLogoId ??= Model.LogoImageID;
         Model.LogoImageID = null;
+        Model.LogoImage = null;
         _logoSelected = false;
         _showUpload = true;
     }

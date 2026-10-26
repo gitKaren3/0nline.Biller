@@ -18,11 +18,11 @@
     <br/>
 </MudForm>
 
-@* <MudCard Class="pa-4" >
+<MudCard Class="pa-4" >
     <MudCardContent>
         <ImageUpload @ref="_imageUpload" T="Image"
                     UploadComplete="OnUploadComplete" 
-                    Category="Logo"/>
+                    Category="Test"/>
     </MudCardContent>
     <MudCardActions>
         <MudButton Variant="Variant.Filled" 
@@ -31,7 +31,7 @@
             Upload Image
         </MudButton>
     </MudCardActions>
-</MudCard> *@
+</MudCard>
 
 @if (!string.IsNullOrEmpty(_uploadedUrl))
 {

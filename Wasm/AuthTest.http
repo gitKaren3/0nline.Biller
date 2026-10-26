@@ -4,9 +4,11 @@ POST https://localhost:7053/api/auth/validate-login
 Content-Type: application/json
 Accept: application/json
 
+### Credentials are intentionally NOT committed.
+### Fill these in locally, or keep them out of version control entirely.
 {
-  "username": "karen@corporatewebservices.co.za",
-  "password": "Password@123",
+  "username": "test.user@example.com",
+  "password": "<your-password-here>",
   "returnUrl": "/dashboard",
   "rememberMe": true
 }

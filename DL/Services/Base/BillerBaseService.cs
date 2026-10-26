@@ -1,4 +1,5 @@
 ﻿using _0nline.Biller.DL.Contract.Models;
+using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
@@ -10,6 +11,28 @@ namespace _0nline.Biller.DL.Services.Base
 {
     public abstract class BillerBaseService<T> : DbService<T, int>, IDLBaseService<T> where T : class, IDbEntity
     {
+        /// <summary>
+        /// Biller rows are tenant-owned: stamp TenantID from the token on insert and
+        /// scope every update/delete to it.
+        /// </summary>
+        protected override bool EnforceTenantScope => true;
+
+        /// <summary>
+        /// <c>Tenant</c> is an ownership edge, not part of a child payload. Without
+        /// this, a Company/Contact/Image body could carry a Tenant object and the
+        /// generic navigation save would update (or insert) that tenant unscoped.
+        /// </summary>
+        protected override void SanitizeForWrite(object entity)
+        {
+            if (entity is null) return;
+
+            var tenantNav = entity.GetType()
+                .GetProperty(nameof(Tenant), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+
+            if (tenantNav?.PropertyType == typeof(Tenant))
+                tenantNav.SetValue(entity, null);
+        }
+
         //constructor
         protected BillerBaseService(IDbContextProvider<BillerDbConfig> ctx, ISqlQueryProvider<T> queryStringService, ITenantContext tenancyContext)
             : base(ctx, queryStringService, tenancyContext)
@@ -39,14 +62,14 @@ namespace _0nline.Biller.DL.Services.Base
         {
             T[] entities = {entity};
             int count = await base.AddAsync(entities);
-            return Result<T>.Success(entity);
+            return count > 0 ? Result<T>.Success(entity) : Result<T>.None();
         }
 
         protected new async Task<Result<T>> UpdateAsync(T entity)
         {
             T[] entities = {entity};
             int count = await base.UpdateAsync(entities);
-            return Result<T>.Success(entity);
+            return count > 0 ? Result<T>.Success(entity) : Result<T>.None();
         }
 
         protected async Task<Result<T?>> DeleteOrDeactivateAsync(int id)

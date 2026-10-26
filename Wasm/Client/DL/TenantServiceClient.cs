@@ -40,6 +40,19 @@ namespace _0nline.Biller.Wasm.Client.DL
             entity.Tier = null; // Tier should not be updated.
             return PostAndHandleAsync<Tenant, TenantRegistrationResult>("register", entity);
         }
-        
+
+        public Task<Result<TenantRegistrationResult>> EnsureAsync(string? currentToken = null)
+            => PostAndHandleAsync<object, TenantRegistrationResult>("ensure", new { });
+
+        public Task<Result<Tenant>> AttachProfileAsync(int? contactId, int? companyId)
+            => PostAndHandleAsync<TenantProfileRequest, Tenant>(
+                "attach", new TenantProfileRequest { ContactID = contactId, CompanyID = companyId });
+
+        public async Task<Result> CloseAsync(int tenantId)
+            => await PostAndHandleAsync<object, object>($"{tenantId}/close", new { });
+
+        public Task<Result> PurgeAsync(int tenantId)
+            => throw new NotSupportedException(
+                "Purge is a privileged back-office operation; there is no client endpoint.");
     }
 }
