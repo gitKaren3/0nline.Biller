@@ -10,7 +10,123 @@ html {
     scroll-behavior: smooth; /* Gliding behaviour instead of jumping when moving to anchors */
 }
 
+/* ------------------------------------------------------------------ Surface texture */
+
+/*
+   Biller's surface: the hairline rules of ruled accounting paper.
+
+   The rule colour is mixed from the palette so the texture follows the accent in both light
+   and dark mode, and it is kept faint enough that text always reads as the foreground.
+   Tune it with --biller-rule-spacing and --biller-rule-opacity.
+
+   MudBlazor's theme provider only emits CSS custom properties — it never paints the page
+   itself — so the page colour is set here from --mud-palette-background. Without this the
+   page stays browser-white in dark mode.
+
+   The rules scroll with the content, the way they would on a real sheet of ruled paper.
+*/
+body {
+    --biller-rule-spacing: 32px;
+    --biller-rule-opacity: 7%;
+    min-height: 100vh;
+    background-color: var(--mud-palette-background, #ffffff);
+    background-image: 
+        /* Horizontal lines */
+        repeating-linear-gradient( to bottom, transparent 0, transparent calc(var(--biller-rule-spacing) - 1px), color-mix( in srgb, var(--mud-palette-primary, #5B4BB5) var(--biller-rule-opacity), transparent ) calc(var(--biller-rule-spacing) - 1px), color-mix( in srgb, var(--mud-palette-primary, #5B4BB5) var(--biller-rule-opacity), transparent ) var(--biller-rule-spacing) ),
+        /* Vertical lines */
+        repeating-linear-gradient( to right, transparent 0, transparent calc(var(--biller-rule-spacing) - 1px), color-mix( in srgb, var(--mud-palette-primary, #5B4BB5) var(--biller-rule-opacity), transparent ) calc(var(--biller-rule-spacing) - 1px), color-mix( in srgb, var(--mud-palette-primary, #5B4BB5) var(--biller-rule-opacity), transparent ) var(--biller-rule-spacing) );
+}
+
 .body {
+}
+
+/* ---------------------------------------------------------------- Product lockup */
+
+/*
+   "0nline ▸ e-Biller ▊" — a terminal prompt style lockup that identifies the product.
+   The accent colour follows the palette, so it stays legible on light and dark surfaces.
+*/
+
+.product-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'Cascadia Mono', 'Share Tech Mono', monospace;
+    white-space: nowrap;
+}
+
+.product-lockup .wordmark {
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.product-lockup .sep {
+    color: var(--mud-palette-primary, #5B4BB5);
+    font-size: 0.8em;
+}
+
+.product-lockup .product {
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+/* Off the app bar the product name carries the accent. On the app bar it stays white. */
+.product-lockup:not(.on-accent) .product {
+    color: var(--mud-palette-primary, #5B4BB5);
+}
+
+.product-lockup .cursor {
+    display: inline-block;
+    width: 0.5em;
+    height: 1em;
+    margin-left: 0.1rem;
+    background: var(--mud-palette-primary, #5B4BB5);
+    vertical-align: -0.15em;
+    animation: biller-cursor-blink 1.15s infinite;
+}
+
+/* On the accent coloured app bar the accent itself would disappear into the fill. */
+.product-lockup.on-accent .sep {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.product-lockup.on-accent .cursor {
+    background: #ffffff;
+}
+
+@keyframes biller-cursor-blink {
+    0%, 49.9% {
+        opacity: 1;
+    }
+
+    50%, 100% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .product-lockup .cursor {
+        animation: none;
+    }
+}
+
+.hero-lockup {
+    margin-top: 0.75rem;
+    font-size: 1.5rem;
+}
+
+/*
+   The dark mode toggle sits on the accent coloured app bar. MudBlazor draws the switch track
+   with the palette's default action colour, which in Biller is the same indigo as the bar, so
+   the track gets a light fill to stay legible in both light and dark mode.
+*/
+.mud-appbar .mud-switch-track {
+    background-color: rgba(255, 255, 255, 0.45);
+}
+
+.appbar-lockup {
+    font-size: 0.95rem;
 }
 
 .hero {

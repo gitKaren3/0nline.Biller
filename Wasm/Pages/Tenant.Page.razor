@@ -7,6 +7,8 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserSession UserSession
 
+<PageTitle>e-Biller | My Profile</PageTitle>
+
 <AuthorizeView>
     <NotAuthorized>
         <RedirectToLogin />
@@ -28,14 +30,16 @@ else if (_loadError != null)
 }
 else if (_onboarding)
 {
-    <MudText Typo="Typo.h3" Class="py-3 mb-3">Get Started:</MudText>
-
-    <TenantForm Onboarding="true" Tenant="@_tenant" OnSaved="OnSaved" />
-
+    <MudText Typo="Typo.h3" Class="py-3 mb-1">Get Started:</MudText>
+    <MudPaper Class="pa-3">
+        <TenantForm Onboarding="true" Tenant="@_tenant" OnSaved="OnSaved" />
+    </MudPaper>
 }
 else
 {
-    <TenantForm Tenant="@_tenant" OnSaved="OnSaved" />
+    <MudPaper Class="py-3 px-3">
+        <TenantForm Tenant="@_tenant" OnSaved="OnSaved" />
+    </MudPaper>
 }
 
 

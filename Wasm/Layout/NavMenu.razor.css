@@ -3,7 +3,13 @@
 	border-radius: 6px;
 }
 
-	.mud-navmenu-root .mud-nav-link.mud-nav-link-active {
-		background: linear-gradient(90deg, rgba(0,123,255,0.12), rgba(0,123,255,0.06));
-		box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+/*
+   MudBlazor marks the active link with the "active" class and already colours it with
+   --mud-palette-primary. This adds a tinted wash that follows the palette in both modes.
+*/
+	.mud-navmenu-root .mud-nav-link.active {
+		background: linear-gradient(90deg,
+			color-mix(in srgb, var(--mud-palette-primary) 14%, transparent),
+			color-mix(in srgb, var(--mud-palette-primary) 6%, transparent));
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 	}

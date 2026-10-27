@@ -21,13 +21,9 @@
         <MudContainer MaxWidth="MaxWidth.False" Gutters="false" Class="hero">
             <p class="logo">
                 <Logo Width="210" />
-                <br />
-                <span class="logo-text">PRODUCTIONS</span>
             </p>
+            <ProductLockup Product="e-Biller" Class="hero-lockup" />
         </MudContainer>
-        <MudText Typo="Typo.h2" Align="Align.Center" Color="Color.Primary" Style="font-weight: 700;">
-            The e-Biller
-        </MudText>
        
         @Body
        
@@ -40,10 +36,10 @@
         </MudContainer>
     </NotAuthorized>
     <Authorized>
-        <MudAppBar Color="Color.Primary" Elevation="4" Position="Position.Top">
+        <MudAppBar Elevation="4" Position="Position.Top">
             <MudIconButton Icon="@Icons.Material.Filled.Menu"
                            Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-            <MudText Typo="Typo.h6">0nline</MudText>
+            <ProductLockup Product="e-Biller" ShowWordmark="true" OnAccent="true" Class="appbar-lockup" />
             <MudSpacer />
 
             <DarkModeToggle DarkModeChanged="OnDarkModeChanged" />

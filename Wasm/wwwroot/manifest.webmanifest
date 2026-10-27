@@ -1,11 +1,11 @@
 {
-  "name": "Biller.WebApp",
-  "short_name": "Biller.WebApp",
+  "name": "e-Biller",
+  "short_name": "e-Biller",
   "id": "./",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#03173d",
+  "theme_color": "#5B4BB5",
   "prefer_related_applications": false,
   "icons": [
     {

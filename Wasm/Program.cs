@@ -10,6 +10,7 @@ using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Biller.Wasm;
 using _0nline.Biller.Wasm.Client.Auth;
 using _0nline.Biller.Wasm.Client.DL;
+using _0nline.Biller.Wasm.Client.Themes;
 using _0nline.Biller.Wasm.Client.Utils;
 using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -67,6 +68,14 @@ builder.Services.AddLocalization(options => options.ResourcesPath = "");   // to
 
 #region * Shared Client *
 builder.Services.AddSharedClientServices(builder.Configuration.GetSection("ThemeSettings"));
+#endregion // .......................................................................................
+
+#region * Biller Theme *
+
+// Registered after AddSharedClientServices so this replaces the shared IThemeService
+// registration — MS DI resolves the last registration for a single service type.
+builder.Services.AddScoped<IThemeService, BillerThemeService>();
+
 #endregion // .......................................................................................
 
 #region * Auth *

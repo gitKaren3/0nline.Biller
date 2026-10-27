@@ -1,0 +1,50 @@
+@* Terminal-style product lockup: "0nline ▸ e-Biller ▊" *@
+
+<span class="@RootClass" style="@Style">
+    @if (ShowWordmark)
+    {
+        <span class="wordmark">0nline</span>
+    }
+    <span class="sep" aria-hidden="true">&#9656;</span>
+    <span class="product">@Product</span>
+    <span class="cursor" aria-hidden="true"></span>
+</span>
+
+@code {
+    /// <summary>
+    /// The product name shown in the lockup, e.g. "e-Biller".
+    /// </summary>
+    [Parameter]
+    public string Product { get; set; } = "e-Biller";
+
+    /// <summary>
+    /// Renders the 0nline wordmark ahead of the product name.
+    /// </summary>
+    [Parameter]
+    public bool ShowWordmark { get; set; }
+
+    /// <summary>
+    /// Set when the lockup sits on the accent-coloured app bar, where the accent itself would
+    /// be invisible against the fill.
+    /// </summary>
+    [Parameter]
+    public bool OnAccent { get; set; }
+
+    /// <summary>
+    /// Additional CSS classes applied to the root element.
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>
+    /// Additional inline style applied to the root element.
+    /// </summary>
+    [Parameter]
+    public string? Style { get; set; }
+
+    private string CssClass => OnAccent ? "on-accent" : string.Empty;
+
+    private string RootClass =>
+        string.Join(" ", new[] { "product-lockup", CssClass, Class }
+            .Where(c => !string.IsNullOrWhiteSpace(c)));
+}

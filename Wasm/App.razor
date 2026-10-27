@@ -5,7 +5,7 @@
     <ErrorBoundary @ref="globalErrorBoundary" >
         <ErrorContent Context="ex">
             <LayoutView Layout="@typeof(Layout.MainLayout)">
-                <PageTitle>Error</PageTitle>
+                <PageTitle>e-Biller | Error</PageTitle>
                 <MudContainer MaxWidth="MaxWidth.Small" Class="mx-auto my-2">
                     <_0nline.Shared.Client.Components.Error Exception="@ex"
                         Message ="@ex.Message"
@@ -28,7 +28,7 @@
                 </Found>
 
                 <NotFound>
-                    <PageTitle>Not found</PageTitle>
+                    <PageTitle>e-Biller | Not found</PageTitle>
                     <LayoutView Layout="@typeof(MainLayout)">
                         <p role="alert">Sorry, there's nothing at this address.</p>
                     </LayoutView>
