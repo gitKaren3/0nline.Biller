@@ -1,14 +1,14 @@
 ### Get Company by ID
-GET https://localhost:5001/api/biller/company/1
+GET https://localhost:7053/api/biller/company/1
 
 ### Get all Companys
-GET https://localhost:5001/api/biller/company
+GET https://localhost:7053/api/biller/company
 
 ### Lookup Companys
-GET https://localhost:5001/api/biller/company/lookup
+GET https://localhost:7053/api/biller/company/lookup
 
 ### Create Company
-POST https://localhost:5001/api/biller/company
+POST https://localhost:7053/api/biller/company
 Content-Type: application/json
 
 {
@@ -24,12 +24,13 @@ Content-Type: application/json
   "Phone": "Sample",
   "LogoImageID": 0,
   "Active": "Sample",
+  "Tenant": "Sample",
   "BillingContact": "Sample",
   "LogoImage": "Sample"
 }
 
 ### Update Company
-PUT https://localhost:5001/api/biller/company
+PUT https://localhost:7053/api/biller/company
 Content-Type: application/json
 
 {
@@ -45,9 +46,10 @@ Content-Type: application/json
   "Phone": "Sample",
   "LogoImageID": 0,
   "Active": "Sample",
+  "Tenant": "Sample",
   "BillingContact": "Sample",
   "LogoImage": "Sample"
 }
 
 ### Delete Company
-DELETE https://localhost:5001/api/biller/company/1
+DELETE https://localhost:7053/api/biller/company/1

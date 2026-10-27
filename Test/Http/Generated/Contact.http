@@ -1,14 +1,14 @@
 ### Get Contact by ID
-GET https://localhost:5001/api/biller/contact/1
+GET https://localhost:7053/api/biller/contact/1
 
 ### Get all Contacts
-GET https://localhost:5001/api/biller/contact
+GET https://localhost:7053/api/biller/contact
 
 ### Lookup Contacts
-GET https://localhost:5001/api/biller/contact/lookup
+GET https://localhost:7053/api/biller/contact/lookup
 
 ### Create Contact
-POST https://localhost:5001/api/biller/contact
+POST https://localhost:7053/api/biller/contact
 Content-Type: application/json
 
 {
@@ -19,12 +19,11 @@ Content-Type: application/json
   "Surname": "Sample",
   "Email": "Sample",
   "CellPhone": "Sample",
-  "BusinessPhone": "Sample",
   "Tenant": "Sample"
 }
 
 ### Update Contact
-PUT https://localhost:5001/api/biller/contact
+PUT https://localhost:7053/api/biller/contact
 Content-Type: application/json
 
 {
@@ -35,9 +34,8 @@ Content-Type: application/json
   "Surname": "Sample",
   "Email": "Sample",
   "CellPhone": "Sample",
-  "BusinessPhone": "Sample",
   "Tenant": "Sample"
 }
 
 ### Delete Contact
-DELETE https://localhost:5001/api/biller/contact/1
+DELETE https://localhost:7053/api/biller/contact/1
