@@ -10,11 +10,10 @@ namespace _0nline.Biller.DL.Contract.Interfaces
     /// by the API. Do not expose this service by its own key.
     /// </summary>
     /// <remarks>
-    /// Lives under <c>Interfaces/Internal</c> on purpose: the controller and HTTP
-    /// generators scan only the top level of <c>Interfaces</c>, so they cannot
-    /// emit an <c>InvoiceLine</c> endpoint for this child table.
+    /// Does not inherit from IDLBaseService, IDLReadableService or IDLWritableService,
+    /// so the controller generator does not emit any <c>InvoiceLine</c> endpoints for this child table.
     /// </remarks>
-    public interface IInvoiceLineService : IDLBaseService<InvoiceLine>
+    public interface IInvoiceLineService 
     {
         Task<Result<InvoiceLine[]>> GetByInvoiceIdAsync(int invoiceId);
     }
