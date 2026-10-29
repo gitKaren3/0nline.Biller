@@ -8,6 +8,7 @@ using _0nline.Shared.Client.Services;
 using _0nline.Shared.Contract.Models;
 using Bunit;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -41,6 +42,20 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
     public Task InitializeAsync() => Task.CompletedTask;
 
     public new async Task DisposeAsync() => await base.DisposeAsync();
+
+    [Fact]
+    public void EmptyContactFieldShowsRequiredOnBlur()
+    {
+        var tenant = new Tenant { ID = 19, UserId = 7, TierID = 1 };
+
+        var cut = Render<TenantForm>(p => p.Add(x => x.Tenant, tenant));
+
+        var input = cut.Find("input");
+        input.Change(string.Empty);
+        input.Blur(new FocusEventArgs());
+
+        cut.WaitForAssertion(() => Assert.Contains("Required", cut.Markup));
+    }
 
     [Fact]
     public async Task ExistingProfileSavesChildrenThenAttachesThemToTheTenant()
