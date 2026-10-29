@@ -1,0 +1,117 @@
+@inject IServiceProvider Services
+
+@* Reusable tenant rate form — owns the rate fields and EditContext so a host can render it *@
+@* inside any EditForm, validate it, and save the model itself. *@
+
+<MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">Billing rate</MudText>
+
+<EditForm @ref="_form" Model="@Model" Class="mt-2">
+    <DataAnnotationsValidator />
+
+    <MudGrid>
+        <MudItem xs="12" sm="6" lg="4">
+            <MudSelect T="short" Label="Rate Type" Class="mt-3" ShrinkLabel="true"
+                       @bind-Value="Model.RateTypeID" For="@(() => Model.RateTypeID)">
+                @foreach (var rateType in RateTypeOptions)
+                {
+                    <MudSelectItem T="short" Value="@((short)rateType.Key)">@rateType.Value</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" lg="4">
+            <MudSelect T="int?" Label="Client" Class="mt-3" ShrinkLabel="true" Clearable="true"
+                       @bind-Value="Model.CompanyID" For="@(() => Model.CompanyID)">
+                @foreach (var company in CompanyOptions)
+                {
+                    <MudSelectItem T="int?" Value="@company.Key">@company.Value</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" lg="4">
+            <MudSelect T="int?" Label="Contact" Class="mt-3" ShrinkLabel="true" Clearable="true"
+                       @bind-Value="Model.ContactID" For="@(() => Model.ContactID)">
+                @foreach (var contact in ContactOptions)
+                {
+                    <MudSelectItem T="int?" Value="@contact.Key">@contact.Value</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" lg="4">
+            <MudNumericField T="decimal?" Label="Default Rate" Class="mt-3" ShrinkLabel="true"
+                             @bind-Value="Model.DefaultRate" For="@(() => Model.DefaultRate)" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" lg="4">
+            <MudDatePicker Label="End Date" Class="mt-3" ShrinkLabel="true"
+                           @bind-Date="Model.EndDate" For="@(() => Model.EndDate)" />
+        </MudItem>
+
+        @if (Model.StartDate is DateTime startDate)
+        {
+            <MudItem xs="12" sm="6" lg="4">
+                <MudText Typo="Typo.body2" Class="mt-6">
+                    <strong>Start Date:</strong> @startDate.ToString("d")
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    <strong>Status:</strong> @(Model.Active == true ? "Active" : "Inactive")
+                </MudText>
+            </MudItem>
+        }
+    </MudGrid>
+</EditForm>
+
+@code {
+    /// <summary>The tenant rate being edited. Two-way bound so the host can read the result.</summary>
+    [Parameter, EditorRequired] public TenantRate Model { get; set; } = default!;
+
+    /// <summary>Optional lookups supplied by the host. When omitted, they are loaded from the registered services.</summary>
+    [Parameter] public IReadOnlyDictionary<int, string>? RateTypes { get; set; }
+    [Parameter] public IReadOnlyDictionary<int, string>? Companies { get; set; }
+    [Parameter] public IReadOnlyDictionary<int, string>? Contacts { get; set; }
+
+    private EditForm? _form;
+
+    private IReadOnlyDictionary<int, string> _rateTypes = new Dictionary<int, string>();
+    private IReadOnlyDictionary<int, string> _companies = new Dictionary<int, string>();
+    private IReadOnlyDictionary<int, string> _contacts = new Dictionary<int, string>();
+
+    private IReadOnlyDictionary<int, string> RateTypeOptions => RateTypes ?? _rateTypes;
+    private IReadOnlyDictionary<int, string> CompanyOptions => Companies ?? _companies;
+    private IReadOnlyDictionary<int, string> ContactOptions => Contacts ?? _contacts;
+
+    /// <summary>Exposes the EditContext so a host can validate this form alongside others.</summary>
+    public EditContext? EditContext => _form?.EditContext;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (RateTypes == null
+            && Services.GetService(typeof(IRateTypeService)) is IRateTypeService rateTypeService)
+        {
+            _rateTypes = await LoadLookupAsync(rateTypeService.GetLookupAsync());
+        }
+
+        if (Companies == null
+            && Services.GetService(typeof(ICompanyService)) is ICompanyService companyService)
+        {
+            _companies = await LoadLookupAsync(companyService.GetLookupAsync());
+        }
+
+        if (Contacts == null
+            && Services.GetService(typeof(IContactService)) is IContactService contactService)
+        {
+            _contacts = await LoadLookupAsync(contactService.GetLookupAsync());
+        }
+    }
+
+    private static async Task<IReadOnlyDictionary<int, string>> LoadLookupAsync(
+        Task<Result<IReadOnlyDictionary<int, string>>> lookup)
+    {
+        var result = await lookup;
+        return result.Successful && result.Value != null
+            ? result.Value
+            : new Dictionary<int, string>();
+    }
+}

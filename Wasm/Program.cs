@@ -114,6 +114,9 @@ builder.Services.AddHttpClient<ITenantService,TenantServiceClient>()
 builder.Services.AddHttpClient<ITierService, TierServiceClient>()
     .AddHttpMessageHandler<AuthMessageHandler>();
 
+builder.Services.AddHttpClient<IRateTypeService, RateTypeServiceClient>()
+    .AddHttpMessageHandler<AuthMessageHandler>();
+
 builder.Services.AddHttpClient<ICompanyService, CompanyServiceClient>()
     .AddHttpMessageHandler<AuthMessageHandler>()
     .AddHttpMessageHandler<TenantMessageHandler>()

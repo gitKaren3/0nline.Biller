@@ -29,6 +29,8 @@ namespace _0nline.Biller.Test.Base
             JSInterop.SetupVoid("mudPopover.initialize", _ => true);
             JSInterop.SetupVoid("mudPopover.open", _ => true);
             JSInterop.SetupVoid("mudPopover.close", _ => true);
+            JSInterop.SetupVoid("mudPopover.connect", _ => true);
+            JSInterop.SetupVoid("mudPopover.disconnect", _ => true);
 
             JSInterop.SetupVoid("mudResizeObserver.observe", _ => true);
             JSInterop.SetupVoid("mudResizeObserver.unobserve", _ => true);
