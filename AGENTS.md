@@ -46,4 +46,5 @@ dotnet test Z_0nline.Biller.slnx --filter "FullyQualifiedName~Sample"
 - Namespaces start with `_0nline` (leading underscore — C# identifiers can't start with a digit). Namespace mirrors folder structure.
 - Database tables: singular, PascalCase. Enum tables use stable keys (no identity), `tinyint`/`smallint`.
 - API route pattern: `api/biller/{entity}`. All endpoints require authorization.
+- Lookups are app-specific: `DL/SqlQueryGenerator.json` (`LookupLabels`, `LookupFilters`) decides how a row is labelled and which rows a picker offers. Biller labels a `Contact` as `Surname, FirstName` and keeps the tenant's own profile out of the client pickers; the generated `LookupQuery` is not hand-edited.
 - MudBlazor is the UI library. Never guess its behaviour — decompile with `ilspycmd` if unsure.

@@ -5,6 +5,13 @@
   "Scope": "public",
   "BaseClass": "SqlQueryProvider",
   "ConnectionString": "host=localhost port=5432 dbname=0nline.Biller user=pilot password=hermes",
-	"QuoteIdentifierFormat": "\\\"{0}\\\"",
-  "Depluralize": "false"
+  "QuoteIdentifierFormat": "\\\"{0}\\\"",
+  "Depluralize": "false",
+  "LookupLabels": {
+    "Contact": { "columns": ["Surname", "FirstName"], "separator": ", " }
+  },
+  "LookupFilters": {
+    "Contact": "\"ID\" IS DISTINCT FROM (SELECT \"ContactID\" FROM \"Tenant\" WHERE \"ID\" = @TenantId)",
+    "Company": "\"ID\" IS DISTINCT FROM (SELECT \"CompanyID\" FROM \"Tenant\" WHERE \"ID\" = @TenantId)"
+  }
 }

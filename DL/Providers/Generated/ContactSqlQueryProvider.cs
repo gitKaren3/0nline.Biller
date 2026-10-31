@@ -11,7 +11,7 @@ namespace _0nline.Biller.DL.Providers
         { }
         public override string AllQuery => AddFilter(base.AllQuery, "\"TenantID\" = @TenantId");
         public override string ByIdQuery => AddFilter(base.ByIdQuery, "\"TenantID\" = @TenantId");
-        public override string LookupQuery => AddFilter($"SELECT \"ID\", \"FirstName\" FROM \"Contact\"", "\"TenantID\" = @TenantId");
+        public override string LookupQuery => AddFilter($"SELECT \"ID\", concat_ws(', ', \"Surname\", \"FirstName\") FROM \"Contact\"", "\"TenantID\" = @TenantId AND (\"ID\" IS DISTINCT FROM (SELECT \"ContactID\" FROM \"Tenant\" WHERE \"ID\" = @TenantId))");
         public override string UpdateQuery => AddFilter(base.UpdateQuery, "\"TenantID\" = @TenantId");
         public override string DeleteQuery => AddFilter(base.DeleteQuery, "\"TenantID\" = @TenantId");
         public override string DeactivateQuery => string.Empty;

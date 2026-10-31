@@ -14,7 +14,7 @@
 
 <MudText Typo="Typo.h3">Clients</MudText>
 <MudGrid Class="py-2">
-    @foreach (var item in contacts)
+    @foreach (var item in contacts.OrderBy(c => c.Value, StringComparer.CurrentCultureIgnoreCase))
     {
         <MudItem xs="12" sm="6" md="4" lg="3">
             <MudCard Class="pa-4 mx-auto">

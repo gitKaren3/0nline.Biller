@@ -11,7 +11,7 @@ namespace _0nline.Biller.DL.Providers
         { }
         public override string AllQuery => base.AllQuery;
         public override string ByIdQuery => base.ByIdQuery;
-        public override string LookupQuery => $"SELECT \"CompanyID\" AS Key, \"''\" AS Value FROM \"CompanyContactLink\"";
+        public override string LookupQuery => $"SELECT \"CompanyID\" AS Key, CAST(\"CompanyID\" AS text) AS Value FROM \"CompanyContactLink\"";
         public override string UpdateQuery => base.UpdateQuery;
         public override string DeleteQuery => base.DeleteQuery;
         public override string DeactivateQuery => string.Empty;

@@ -47,6 +47,13 @@ A tenant can have many client contacts and companies; exactly one of each is its
 The pointers are the differentiator, so they stay. They are nullable because the tenant
 is created at first login before the profile is captured.
 
+The `Contact` and `Company` lookups are **client** lists, so they exclude the row the
+tenant points at: `DL/SqlQueryGenerator.json` declares that under `LookupFilters`
+(`"ID" IS DISTINCT FROM (SELECT ... FROM "Tenant" WHERE "ID" = @TenantId)`). The profile
+rows keep their `TenantID`; only the picker query hides them. `IS DISTINCT FROM` rather
+than `<>` matters because the pointer can be NULL while the profile is being captured,
+and `"ID" <> NULL` would hide every row.
+
 ## The tenant's bank accounts
 
 `BankAccount` is the payee detail an invoice prints: account holder, bank, account
