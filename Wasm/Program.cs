@@ -129,6 +129,10 @@ builder.Services.AddHttpClient<ITenantRateService, TenantRateServiceClient>()
     .AddHttpMessageHandler<AuthMessageHandler>()
     .AddHttpMessageHandler<TenantMessageHandler>()
     ;
+builder.Services.AddHttpClient<IBankAccountService, BankAccountServiceClient>()
+    .AddHttpMessageHandler<AuthMessageHandler>()
+    .AddHttpMessageHandler<TenantMessageHandler>()
+    ;
 builder.Services.AddHttpClient<IImageService,ImageServiceClient>()
     .AddHttpMessageHandler<AuthMessageHandler>()
     .AddHttpMessageHandler<TenantMessageHandler>();

@@ -440,6 +440,12 @@ namespace _0nline.Biller.DL.Services
                     "DELETE FROM \"TenantRate\" WHERE \"TenantID\" = @Id",
                     new { Id = tenantId }, tran);
 
+                // Leaf table. The FK also cascades from Tenant, but the explicit
+                // delete keeps the order readable and independent of that.
+                await conn.ExecuteAsync(
+                    "DELETE FROM \"BankAccount\" WHERE \"TenantID\" = @Id",
+                    new { Id = tenantId }, tran);
+
                 // Company references Contact (BillingContactID) and Image
                 // (LogoImageID), so it must be removed before either.
                 await conn.ExecuteAsync(

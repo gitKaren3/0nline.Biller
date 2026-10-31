@@ -1,0 +1,293 @@
+@inject IBankAccountService BankAccountService
+@inject ISnackbar Snackbar
+
+@* The tenant's own bank accounts: the account(s) clients pay invoices into. *@
+
+@if (ShowHeading)
+{
+    <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">Banking details</MudText>
+}
+<MudText Typo="Typo.body2" Class="mb-4">
+    Where your clients send payment. The default account is the one printed on your invoices.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-4 d-block mx-auto" />
+}
+else if (_loadError != null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="my-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudText>@_loadError</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ReloadAsync">Try again</MudButton>
+        </MudStack>
+    </MudAlert>
+}
+else if (_editing)
+{
+    <MudPaper Outlined="true" Elevation="0" Class="pa-4">
+        <BankAccountForm @ref="_form" Model="_model" />
+    </MudPaper>
+
+    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+        <MudButton OnClick="CancelEdit">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="SaveAsync" Disabled="_saving">
+            @(_saving ? "Saving..." : "Save account")
+        </MudButton>
+    </MudStack>
+}
+else
+{
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+        <MudText Typo="Typo.subtitle1">
+            @(_accounts.Count == 0 ? "No bank details yet" : "Saved accounts")
+        </MudText>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="Add">
+            Add bank account
+        </MudButton>
+    </MudStack>
+
+    @if (_accounts.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mt-2">
+            Add the account your clients should pay into. It will appear on every invoice you issue.
+        </MudText>
+    }
+    else
+    {
+        <MudPaper Outlined="true" Elevation="0" Class="mt-3">
+            @for (int i = 0; i < _accounts.Count; i++)
+            {
+                var account = _accounts[i];
+
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
+                          Class="px-4 py-3">
+                    <MudStack Spacing="0">
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                            <MudText Typo="Typo.subtitle2">@account.AccountName</MudText>
+                            @if (account.IsDefault == true)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary"
+                                         Variant="Variant.Outlined">Default</MudChip>
+                            }
+                        </MudStack>
+                        <MudText Typo="Typo.body2">
+                            @account.BankName · @Mask(account.AccountNumber)
+                        </MudText>
+                    </MudStack>
+
+                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                        @if (_confirmRemoveId == account.ID)
+                        {
+                            <MudText Typo="Typo.body2">Remove?</MudText>
+                            <MudButton Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => RemoveAsync(account))">Yes</MudButton>
+                            <MudButton Size="Size.Small" OnClick="@(() => _confirmRemoveId = null)">No</MudButton>
+                        }
+                        else
+                        {
+                            @if (account.IsDefault != true)
+                            {
+                                <MudButton Size="Size.Small" OnClick="@(() => MakeDefaultAsync(account))">
+                                    Make default
+                                </MudButton>
+                            }
+
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           aria-label="Edit bank account" OnClick="@(() => Edit(account))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           aria-label="Remove bank account"
+                                           OnClick="@(() => _confirmRemoveId = account.ID)" />
+                        }
+                    </MudStack>
+                </MudStack>
+
+                @if (i < _accounts.Count - 1)
+                {
+                    <MudDivider />
+                }
+            }
+        </MudPaper>
+    }
+}
+
+@code {
+    /// <summary>Hide the section heading when the host page already provides one.</summary>
+    [Parameter] public bool ShowHeading { get; set; } = true;
+
+    private const string LoadErrorMessage = "We could not load your banking details. Please try again.";
+
+    private List<BankAccount> _accounts = new();
+    private BankAccount _model = new();
+
+    private BankAccountForm? _form;
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _editing;
+    private string? _loadError;
+    private int? _confirmRemoveId;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        try
+        {
+            var result = await BankAccountService.GetAllAsync();
+
+            if (result.Successful && result.Value is BankAccount[] accounts)
+            {
+                // Default first, then by bank: the account that goes on invoices
+                // should be the one the tenant sees at the top.
+                _accounts = accounts
+                    .Where(a => a.Active != false)
+                    .OrderBy(a => a.IsDefault == true ? 0 : 1)
+                    .ThenBy(a => a.BankName)
+                    .ToList();
+            }
+            else
+            {
+                _loadError = Describe(result, LoadErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"{LoadErrorMessage} ({ex.Message})";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Add()
+    {
+        _confirmRemoveId = null;
+        _model = new BankAccount { IsDefault = _accounts.Count == 0 };
+        _editing = true;
+    }
+
+    private void Edit(BankAccount account)
+    {
+        _confirmRemoveId = null;
+        _model = Clone(account);
+        _editing = true;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = false;
+        _model = new BankAccount();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+
+        // The form owns the EditContext; the host owns the save.
+        if (_form?.Validate() != true) return;
+
+        _saving = true;
+
+        try
+        {
+            var saved = _model.ID > 0
+                ? await BankAccountService.UpdateAsync(_model)
+                : await BankAccountService.CreateAsync(_model);
+
+            if (!saved.Successful)
+            {
+                Snackbar.Add(Describe(saved, "The bank account could not be saved."), Severity.Error);
+                return;
+            }
+
+            Snackbar.Add("Banking details saved.", Severity.Success);
+            _editing = false;
+            _model = new BankAccount();
+
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task MakeDefaultAsync(BankAccount account)
+    {
+        var promoted = Clone(account);
+        promoted.IsDefault = true;
+
+        await SendAsync(
+            () => BankAccountService.UpdateAsync(promoted),
+            "That account could not be made the default.");
+    }
+
+    private async Task RemoveAsync(BankAccount account)
+    {
+        _confirmRemoveId = null;
+
+        await SendAsync(
+            () => BankAccountService.DeleteOrDeactivateAsync(account.ID),
+            "That account could not be removed.");
+    }
+
+    private async Task SendAsync<T>(Func<Task<Result<T>>> send, string fallback)
+    {
+        try
+        {
+            var result = await send();
+
+            if (!result.Successful)
+            {
+                Snackbar.Add(Describe(result, fallback), Severity.Error);
+                return;
+            }
+
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{fallback} ({ex.Message})", Severity.Error);
+        }
+    }
+
+    /// <summary>Editing a copy keeps the list unchanged if the save fails.</summary>
+    private static BankAccount Clone(BankAccount account) => new()
+    {
+        ID = account.ID,
+        TenantID = account.TenantID,
+        AccountName = account.AccountName,
+        BankName = account.BankName,
+        AccountNumber = account.AccountNumber,
+        BranchCode = account.BranchCode,
+        AccountType = account.AccountType,
+        SwiftCode = account.SwiftCode,
+        IsDefault = account.IsDefault,
+        Active = account.Active
+    };
+
+    /// <summary>Shows enough of the number to identify the account, not enough to reuse it.</summary>
+    private static string Mask(string? accountNumber)
+    {
+        if (string.IsNullOrWhiteSpace(accountNumber)) return string.Empty;
+
+        return accountNumber.Length <= 4
+            ? accountNumber
+            : $"•••• {accountNumber[^4..]}";
+    }
+
+    private static string Describe(Result result, string fallback)
+        => result.Errors.FirstOrDefault()
+            ?? (!string.IsNullOrWhiteSpace(result.Message) ? result.Message : fallback);
+}

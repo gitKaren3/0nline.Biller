@@ -1,0 +1,47 @@
+### Get BankAccount by ID
+GET https://localhost:7053/api/biller/bankaccount/1
+
+### Get all BankAccounts
+GET https://localhost:7053/api/biller/bankaccount
+
+### Lookup BankAccounts
+GET https://localhost:7053/api/biller/bankaccount/lookup
+
+### Create BankAccount
+POST https://localhost:7053/api/biller/bankaccount
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "AccountName": "Sample",
+  "BankName": "Sample",
+  "AccountNumber": "Sample",
+  "BranchCode": "Sample",
+  "AccountType": "Sample",
+  "SwiftCode": "Sample",
+  "IsDefault": "Sample",
+  "Active": "Sample",
+  "Tenant": "Sample"
+}
+
+### Update BankAccount
+PUT https://localhost:7053/api/biller/bankaccount
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "AccountName": "Sample",
+  "BankName": "Sample",
+  "AccountNumber": "Sample",
+  "BranchCode": "Sample",
+  "AccountType": "Sample",
+  "SwiftCode": "Sample",
+  "IsDefault": "Sample",
+  "Active": "Sample",
+  "Tenant": "Sample"
+}
+
+### Delete BankAccount
+DELETE https://localhost:7053/api/biller/bankaccount/1

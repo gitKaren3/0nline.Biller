@@ -17,6 +17,7 @@ Tenant scoping is per entity: a table is isolated only when its generated provid
 | `Company` | yes | all five queries | `api/biller/company` |
 | `Image` | yes | all five queries | `api/biller/image` |
 | `TenantRate` | yes | all five queries | `api/biller/tenantrate` |
+| `BankAccount` | yes | all five queries | `api/biller/bankaccount` |
 | `Tenant` | no — it *is* the tenant | no | `api/biller/tenant` |
 | `Tier` | no | no | `api/biller/tier` |
 | `RateType` | no | no | no controller |
@@ -45,6 +46,26 @@ service (`GetTenantByUserIdAsync`, `WHERE "UserId" = @UserId`) and in `TenantCon
 A tenant can have many client contacts and companies; exactly one of each is its own.
 The pointers are the differentiator, so they stay. They are nullable because the tenant
 is created at first login before the profile is captured.
+
+## The tenant's bank accounts
+
+`BankAccount` is the payee detail an invoice prints: account holder, bank, account
+number, branch code, account type and an optional SWIFT code. It is a tenant-owned
+table with a `TenantID`, so the generated provider scopes all five queries and a
+generated controller cannot read another tenant's accounts.
+
+The domain rule is that a tenant with an active account always has exactly one
+default, which is the account payment instructions use. `BankAccountService` enforces
+it: demote the others *before* promoting (the partial unique index
+`UX_BankAccount_Default` is checked per statement), and re-promote the first active
+account after a delete or a failed write. The database enforces it too — a second
+default for the same tenant is rejected.
+
+An invoice should snapshot the payee details when it is issued rather than point at
+the current row: a tenant that changes banks must not rewrite the instructions on
+invoices already sent. There is no invoice UI yet, so nothing reads these rows today.
+
+See [`banking.md`](banking.md) for the table, API and UI.
 
 ## First login: ensure
 
@@ -114,8 +135,8 @@ one edge first. The sequence is in `TenantService.PurgeAsync`:
 
 1. `Tenant.ContactID`/`CompanyID` are set to `NULL` (the cycle break). The migration gives
    those FKs `ON DELETE SET NULL`, so a profile row can also be removed independently.
-2. `CompanyContactLink`, then `InvoiceLine`, then `Invoice`, then `TenantRate`. Lines
-   reference both invoices and rates, and invoices reference contacts.
+2. `CompanyContactLink`, then `InvoiceLine`, then `Invoice`, then `TenantRate` and
+   `BankAccount`. Lines reference both invoices and rates, and invoices reference contacts.
 3. `Company` before `Contact` (`BillingContactID`) and `Image` (`LogoImageID`).
 4. `Contact`, `Image`, `File`, then `Tenant`.
 5. After commit, the image/file files are removed from disk and the membership

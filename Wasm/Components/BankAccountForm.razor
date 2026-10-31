@@ -1,0 +1,83 @@
+@* Reusable bank account form — owns the banking fields and the EditContext so a host *@
+@* can render it inside any EditForm and still validate it. The host saves the model. *@
+
+<EditForm @ref="_form" Model="@Model" Class="mt-2">
+    <DataAnnotationsValidator />
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudTextField Label="Account holder" Class="mt-3" ShrinkLabel="true"
+                          @bind-Value="Model.AccountName" For="@(() => Model.AccountName)" />
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudTextField Label="Bank" Class="mt-3" ShrinkLabel="true"
+                          @bind-Value="Model.BankName" For="@(() => Model.BankName)" />
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudTextField Label="Account number" Class="mt-3" ShrinkLabel="true"
+                          @bind-Value="Model.AccountNumber" For="@(() => Model.AccountNumber)" />
+        </MudItem>
+
+        <MudItem xs="6" md="3">
+            <MudTextField Label="Branch code" Class="mt-3" ShrinkLabel="true"
+                          @bind-Value="Model.BranchCode" For="@(() => Model.BranchCode)" />
+        </MudItem>
+
+        <MudItem xs="6" md="3">
+            <MudSelect T="string" Label="Account type" Class="mt-3" ShrinkLabel="true" Clearable="true"
+                       @bind-Value="AccountType">
+                @foreach (var accountType in AccountTypes)
+                {
+                    <MudSelectItem T="string" Value="@accountType">@accountType</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudTextField Label="SWIFT / BIC (optional)" Class="mt-3" ShrinkLabel="true"
+                          @bind-Value="Model.SwiftCode" For="@(() => Model.SwiftCode)" />
+        </MudItem>
+
+        <MudItem xs="12" md="6" Class="mt-3 d-flex align-center">
+            @if (Model.ID > 0 && Model.IsDefault == true)
+            {
+                <MudText Typo="Typo.body2">This is the default account used on your invoices.</MudText>
+            }
+            else
+            {
+                <MudSwitch T="bool" Color="Color.Primary" Label="Make this the default account"
+                           @bind-Value="IsDefault" />
+            }
+        </MudItem>
+    </MudGrid>
+</EditForm>
+
+@code {
+    /// <summary>The bank account being edited. Two-way bound so the host can read the result.</summary>
+    [Parameter, EditorRequired] public BankAccount Model { get; set; } = default!;
+
+    private static readonly string[] AccountTypes = { "Cheque", "Savings", "Transmission", "Business" };
+
+    private EditForm? _form;
+
+    /// <summary>Exposes the EditContext so a host can validate this form alongside others.</summary>
+    public EditContext? EditContext => _form?.EditContext;
+
+    /// <summary>Runs field validation and reports the verdict.</summary>
+    public bool Validate() => EditContext?.Validate() == true;
+
+    // MudSelect binds a non-null string; the column is nullable.
+    private string AccountType
+    {
+        get => Model.AccountType ?? string.Empty;
+        set => Model.AccountType = string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private bool IsDefault
+    {
+        get => Model.IsDefault == true;
+        set => Model.IsDefault = value;
+    }
+}

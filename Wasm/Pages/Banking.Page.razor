@@ -1,0 +1,50 @@
+@page "/banking"
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserSession UserSession
+
+<PageTitle>e-Biller | Banking details</PageTitle>
+
+<AuthorizeView>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+<MudText Typo="Typo.h3" Class="py-2">Banking details</MudText>
+
+<MudPaper Class="py-3 px-3">
+    @if (_loading)
+    {
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-8 d-block mx-auto" />
+    }
+    else if (_ready)
+    {
+        <BankAccountSection ShowHeading="false" />
+    }
+</MudPaper>
+
+@code {
+    private bool _loading = true;
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Resolve the auth state first: it is what populates UserSession from the
+        // token, so the tenant check is not raced against AuthorizeView.
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        if (authState.User.Identity?.IsAuthenticated == true && UserSession.TenantId <= 0)
+        {
+            // The profile page creates the workspace on first login, and the bank
+            // account is a child of it, so there is nothing to attach details to yet.
+            Snackbar.Add("Set up your profile first. Banking details belong to your workspace.", Severity.Info);
+            Nav.NavigateTo("/tenant");
+            return;
+        }
+
+        _ready = UserSession.TenantId > 0;
+        _loading = false;
+    }
+}
