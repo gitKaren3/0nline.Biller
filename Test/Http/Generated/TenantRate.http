@@ -1,0 +1,51 @@
+### Get TenantRate by ID
+GET https://localhost:7053/api/biller/tenantrate/1
+
+### Get all TenantRates
+GET https://localhost:7053/api/biller/tenantrate
+
+### Lookup TenantRates
+GET https://localhost:7053/api/biller/tenantrate/lookup
+
+### Create TenantRate
+POST https://localhost:7053/api/biller/tenantrate
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "RateTypeID": "Sample",
+  "CompanyID": 0,
+  "ContactID": 0,
+  "DefaultRate": "Sample",
+  "Active": "Sample",
+  "StartDate": "Sample",
+  "EndDate": "Sample",
+  "Tenant": "Sample",
+  "RateType": "Sample",
+  "Company": "Sample",
+  "Contact": "Sample"
+}
+
+### Update TenantRate
+PUT https://localhost:7053/api/biller/tenantrate
+Content-Type: application/json
+
+{
+  "ID": 0,
+  "TenantID": 0,
+  "RateTypeID": "Sample",
+  "CompanyID": 0,
+  "ContactID": 0,
+  "DefaultRate": "Sample",
+  "Active": "Sample",
+  "StartDate": "Sample",
+  "EndDate": "Sample",
+  "Tenant": "Sample",
+  "RateType": "Sample",
+  "Company": "Sample",
+  "Contact": "Sample"
+}
+
+### Delete TenantRate
+DELETE https://localhost:7053/api/biller/tenantrate/1

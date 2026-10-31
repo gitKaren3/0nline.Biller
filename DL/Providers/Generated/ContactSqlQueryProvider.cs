@@ -7,7 +7,7 @@ namespace _0nline.Biller.DL.Providers
     public partial class ContactSqlQueryProvider : SqlQueryProvider<Contact>
     {
         public ContactSqlQueryProvider()
-            : base("Contact", new string[] { "TenantID", "UserId", "FirstName", "Surname", "Email", "CellPhone", "BusinessPhone" }, "ID")
+            : base("Contact", new string[] { "TenantID", "UserId", "FirstName", "Surname", "Email", "CellPhone" }, "ID")
         { }
         public override string AllQuery => AddFilter(base.AllQuery, "\"TenantID\" = @TenantId");
         public override string ByIdQuery => AddFilter(base.ByIdQuery, "\"TenantID\" = @TenantId");

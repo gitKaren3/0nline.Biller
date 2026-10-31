@@ -48,7 +48,7 @@ namespace _0nline.Biller.DL.Services
             // 2. Create DB record
             var image = new Image
             {
-                TenantID = tenantId,
+                TenantID = tenantId.Value,
                 Url = storeResult.RelativePath,
                 Caption = caption,
                 Public = ispublic

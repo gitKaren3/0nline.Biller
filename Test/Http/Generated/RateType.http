@@ -1,0 +1,8 @@
+### Get RateType by ID
+GET https://localhost:7053/api/biller/ratetype/1
+
+### Get all RateTypes
+GET https://localhost:7053/api/biller/ratetype
+
+### Lookup RateTypes
+GET https://localhost:7053/api/biller/ratetype/lookup

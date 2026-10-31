@@ -7,7 +7,7 @@ namespace _0nline.Biller.DL.Providers
     public partial class ImageSqlQueryProvider : SqlQueryProvider<Image>
     {
         public ImageSqlQueryProvider()
-            : base("Image", new string[] { "TenantID", "Url", "Caption" }, "ID")
+            : base("Image", new string[] { "TenantID", "Url", "Caption", "Public" }, "ID")
         { }
         public override string AllQuery => AddFilter(base.AllQuery, "\"TenantID\" = @TenantId");
         public override string ByIdQuery => AddFilter(base.ByIdQuery, "\"TenantID\" = @TenantId");

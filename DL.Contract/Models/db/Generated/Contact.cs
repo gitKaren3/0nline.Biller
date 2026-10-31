@@ -17,7 +17,8 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         [Editable(true)]
         [ForeignKey("Tenant")]
-        public int? TenantID { get; set; }
+        [Required(ErrorMessage = "Required")]
+        public int TenantID { get; set; } = 0;
 
         [Editable(true)]
         public long? UserId { get; set; }
