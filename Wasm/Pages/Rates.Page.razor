@@ -1,0 +1,18 @@
+@page "/admin/rates"
+
+<PageTitle>e-Biller | Rates</PageTitle>
+
+@* The section calls the API as soon as it renders, so keep it inside Authorized: *@
+@* rendering it for an anonymous visitor would send requests with no token. *@
+<AuthorizeView>
+    <Authorized>
+        <MudText Typo="Typo.h3" Class="py-2">Rates</MudText>
+
+        <MudPaper Class="py-3 px-3">
+            <TenantRateSection ShowHeading="false" />
+        </MudPaper>
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
