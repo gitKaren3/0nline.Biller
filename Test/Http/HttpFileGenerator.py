@@ -55,6 +55,12 @@ for file in os.listdir(interface_folder_path):
 
     interface_name = match.group(1)
     inheritance = match.group(2)
+
+    # A child service has no top-level endpoints, so there is nothing to exercise.
+    if "IDLChildService" in inheritance:
+        print(f"Skipped {interface_name} (child service)")
+        continue
+
     entity_name = interface_name[1:].replace("Service", "").strip()
 
     is_readable = "IDLReadableService" in inheritance

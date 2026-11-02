@@ -125,15 +125,19 @@ They are safe only while they are reached through their parent: a line is loaded
 an invoice was loaded, and the invoice was filtered first.
 
 The rule: **never expose a child table by its own key.** `GetOneAsync(lineId)` would
-return another tenant's line if the id were guessed. Neither table has a controller today;
-if one is added, it must be scoped by the parent, not by id.
+return another tenant's line if the id were guessed. Neither table has a controller.
 
 `InvoiceLine` is surfaced through the invoice detail instead: `InvoiceService.SingleAugment`
-calls `IInvoiceLineService.GetByInvoiceIdAsync`, which uses
-`DbService.GetByForeignKeyAsync` to load the lines (and each line's `TenantRate`) after the
-invoice itself has been tenant-filtered. `IInvoiceLineService` sits in
-`DL.Contract/Interfaces/Internal/` so the controller and HTTP generators, which scan only
-the top level of `Interfaces`, cannot emit an `InvoiceLine` endpoint.
+calls `IInvoiceLineService.GetByParentAsync(invoice)`, which is implemented by
+`BillerChildBaseService` over `ChildDbService`. That base derives from `DbStore`, not
+`DbService`, so the by-id read, delete and deactivate operations do not exist on the
+service at all, and `AddDbServices` does not register an `IDbService<InvoiceLine,int>`.
+
+The interface is declared as `IDLChildService<InvoiceLine, Invoice>`, and the controller
+and HTTP generators skip any interface with that base. The skip is positive: it recognises
+the contract, rather than relying on the absence of an `IDL*Service` base or on the file
+living in an `Internal/` folder. `CompanyContactLink` has no service yet; when it gets one,
+it should follow the same shape (a link base, addressed by the pair rather than by key).
 
 ## Closing and purging
 

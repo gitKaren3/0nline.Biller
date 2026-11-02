@@ -33,14 +33,14 @@ namespace _0nline.Biller.DL.Services
         /// <summary>
         /// A single invoice is returned with its lines so a caller can render the
         /// full detail without a second round trip. The invoice itself is
-        /// tenant-scoped by the base provider; lines are loaded only once that
-        /// scoped invoice has been found.
+        /// tenant-scoped by the base provider; lines are requested through that
+        /// scoped invoice, which is the only way a child row is addressed.
         /// </summary>
         protected override async Task<Invoice> SingleAugment(Invoice invoice)
         {
             if (invoice is not null)
             {
-                var lines = await _invoiceLineService.GetByInvoiceIdAsync(invoice.ID);
+                var lines = await _invoiceLineService.GetByParentAsync(invoice);
                 invoice.InvoiceLines = lines.Value?.ToList() ?? new List<InvoiceLine>();
             }
             return invoice!;

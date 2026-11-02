@@ -63,6 +63,13 @@ for file in os.listdir(interface_folder_path):
     interface_name = match.group(1)
     inheritance = match.group(2)
 
+    # A child service is parent-scoped: it is reached through its parent and must
+    # not get a top-level endpoint of its own. Recognized by contract, not by the
+    # absence of one.
+    if "IDLChildService" in inheritance:
+        print(f"Skipped {interface_name} (child service, no top-level controller)")
+        continue
+
     entity_name = interface_name[1:].replace("Service", "")
     controller_name = entity_name + "Controller"
 
