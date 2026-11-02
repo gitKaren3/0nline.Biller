@@ -18,22 +18,26 @@
             <DarkModeToggle DarkModeChanged="OnDarkModeChanged" />
         </div>
 
-        <MudContainer MaxWidth="MaxWidth.False" Gutters="false" Class="hero">
-            <p class="logo">
-                <Logo Width="210" />
-            </p>
-            <ProductLockup Product="e-Biller" Class="hero-lockup" />
-        </MudContainer>
-       
-        @Body
-       
-        <MudContainer MaxWidth="MaxWidth.False" 
-                      Class="d-flex flex-column align-items-center py-2"
-                      style="background-color: var(--mud-palette-dark); color: var(--mud-palette-dark-text);">
-            <MudText Typo="Typo.body2" Align="Align.Center">
-                &copy; 2026 0nline.co.za — All rights reserved.
-            </MudText>
-        </MudContainer>
+        <div class="biller-page biller-page--public">
+            <MudContainer MaxWidth="MaxWidth.False" Gutters="false" Class="hero">
+                <p class="logo">
+                    <Logo Width="210" />
+                </p>
+                <ProductLockup Product="e-Biller" Class="hero-lockup" />
+            </MudContainer>
+
+            <div class="biller-body">
+                @Body
+            </div>
+
+            <MudContainer MaxWidth="MaxWidth.False"
+                          Class="d-flex flex-column align-items-center py-2 biller-footer"
+                          style="background-color: var(--mud-palette-dark); color: var(--mud-palette-dark-text);">
+                <MudText Typo="Typo.body2" Align="Align.Center">
+                    &copy; 2026 0nline.co.za — All rights reserved.
+                </MudText>
+            </MudContainer>
+        </div>
     </NotAuthorized>
     <Authorized>
         <MudAppBar Elevation="4" Position="Position.Top">
@@ -60,12 +64,12 @@
                            Elevation="1">
                     <NavMenu />
                 </MudDrawer>
-                <MudContainer MaxWidth="MaxWidth.False" Gutters="true" Class="py-4">
+                <MudContainer MaxWidth="MaxWidth.False" Gutters="true" Class="py-4 biller-body">
                     @Body
                 </MudContainer>
-               
-                <MudContainer Elevation="1" MaxWidth="MaxWidth.False" 
-                              Class="d-flex flex-column align-items-center py-2"
+
+                <MudContainer Elevation="1" MaxWidth="MaxWidth.False"
+                              Class="d-flex flex-column align-items-center py-2 biller-footer"
                               style="background-color: var(--mud-palette-dark); color: var(--mud-palette-dark-text);">
                     <MudText Typo="Typo.caption"  Align="Align.Center"><i>"Simplicity is Genius"</i></MudText>
                     <MudText Typo="Typo.caption"  Align="Align.Center">

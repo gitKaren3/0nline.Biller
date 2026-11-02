@@ -256,3 +256,38 @@ footer {
     font-weight: bold;
     box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
+
+/* ------------------------------------------------------------------ Sticky footer */
+
+/* Public (not-authorized) pages: keep the footer at the bottom of the viewport
+   when there is little body content. */
+.biller-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.biller-page--public .biller-body {
+    flex: 1 0 auto;
+}
+
+.biller-page .biller-footer {
+    flex-shrink: 0;
+}
+
+/* Authorized (app) pages: MudMainContent is the scroll container region. */
+.mud-main-content {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-height: 100vh;
+}
+
+.mud-main-content .biller-body {
+    flex: 1 0 auto;
+    min-height: 0;
+}
+
+.mud-main-content .biller-footer {
+    flex-shrink: 0;
+}
