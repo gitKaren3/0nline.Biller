@@ -42,11 +42,13 @@ namespace _0nline.Biller.DL.Contract.Models.db
         public string? PaymentRef { get; set; }
 
         [Editable(true)]
+        [ForeignKey("InvoiceStatus")]
         [Required(ErrorMessage = "Required")]
-        public short? InvoiceStatusID { get; set; }
+        public short InvoiceStatusID { get; set; } = 0;
 
         // Navigation properties
         public Tenant? Tenant { get; set; }
         public Contact? IssuedToContact { get; set; }
+        public InvoiceStatus? InvoiceStatus { get; set; }
     }
 }

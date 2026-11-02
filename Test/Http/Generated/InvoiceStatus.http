@@ -1,0 +1,8 @@
+### Get InvoiceStatus by ID
+GET https://localhost:7053/api/biller/invoicestatus/1
+
+### Get all InvoiceStatuss
+GET https://localhost:7053/api/biller/invoicestatus
+
+### Lookup InvoiceStatuss
+GET https://localhost:7053/api/biller/invoicestatus/lookup

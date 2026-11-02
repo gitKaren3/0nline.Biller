@@ -21,6 +21,7 @@ Tenant scoping is per entity: a table is isolated only when its generated provid
 | `Tenant` | no — it *is* the tenant | no | `api/biller/tenant` |
 | `Tier` | no | no | `api/biller/tier` |
 | `RateType` | no | no | no controller |
+| `InvoiceStatus` | no | no | `api/biller/invoicestatus` |
 | `InvoiceLine` | no | no | read through invoice detail (no controller) |
 | `CompanyContactLink` | no | no | no controller |
 | `File` | yes | no controller yet | no controller |

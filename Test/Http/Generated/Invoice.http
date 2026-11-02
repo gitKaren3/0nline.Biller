@@ -21,7 +21,8 @@ Content-Type: application/json
   "PaymentRef": "Sample",
   "InvoiceStatusID": "Sample",
   "Tenant": "Sample",
-  "IssuedToContact": "Sample"
+  "IssuedToContact": "Sample",
+  "InvoiceStatus": "Sample"
 }
 
 ### Update Invoice
@@ -38,7 +39,8 @@ Content-Type: application/json
   "PaymentRef": "Sample",
   "InvoiceStatusID": "Sample",
   "Tenant": "Sample",
-  "IssuedToContact": "Sample"
+  "IssuedToContact": "Sample",
+  "InvoiceStatus": "Sample"
 }
 
 ### Delete Invoice
