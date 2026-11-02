@@ -136,8 +136,13 @@ service at all, and `AddDbServices` does not register an `IDbService<InvoiceLine
 The interface is declared as `IDLChildService<InvoiceLine, Invoice>`, and the controller
 and HTTP generators skip any interface with that base. The skip is positive: it recognises
 the contract, rather than relying on the absence of an `IDL*Service` base or on the file
-living in an `Internal/` folder. `CompanyContactLink` has no service yet; when it gets one,
-it should follow the same shape (a link base, addressed by the pair rather than by key).
+living in an `Internal/` folder.
+
+`CompanyContactLink` follows the same rule through `ICompanyContactLinkService`
+(`IDLLinkService<CompanyContactLink, Company, Contact>`): it is addressed by the company
+and the contact, never by a key, and `CompanyService.SingleAugment` populates
+`Company.Contacts` from it. Linking checks that the target contact belongs to the current
+tenant, because the foreign key alone would happily point at another tenant's row.
 
 ## Closing and purging
 

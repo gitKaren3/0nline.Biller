@@ -61,6 +61,10 @@ for file in os.listdir(interface_folder_path):
         print(f"Skipped {interface_name} (child service)")
         continue
 
+    if "IDLLinkService" in inheritance:
+        print(f"Skipped {interface_name} (link service)")
+        continue
+
     entity_name = interface_name[1:].replace("Service", "").strip()
 
     is_readable = "IDLReadableService" in inheritance

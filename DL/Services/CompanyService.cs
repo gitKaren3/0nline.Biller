@@ -13,12 +13,14 @@ namespace _0nline.Biller.DL.Services
     public class CompanyService : BillerBaseService<Company>, ICompanyService, IDLReadableService<Company>, IDLWritableService<Company>
     {
         private readonly IFileStoreService _fileStoreService;
+        private readonly ICompanyContactLinkService _companyContactLinkService;
 
         public CompanyService(IDbContextProvider<BillerDbConfig> ctx, ISqlQueryProvider<Company> queryService, ITenantContext tenancyContext
-            , IFileStoreService fileStoreService) 
+            , IFileStoreService fileStoreService, ICompanyContactLinkService companyContactLinkService)
             : base(ctx, queryService, tenancyContext)
         {
             _fileStoreService = fileStoreService;
+            _companyContactLinkService = companyContactLinkService;
         }
 
         public new Task<Result<Company[]>> GetAllAsync() => base.GetAllAsync();
@@ -28,11 +30,28 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<Company>> UpdateAsync(Company entity) => base.UpdateAsync(entity);
         public new Task<Result<Company?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
 
-        protected override Task<Company> SingleAugment(Company company)
+        /// <summary>
+        /// A single company is returned with its linked contacts, so a detail view does
+        /// not need a second round trip. The company was already tenant-filtered, and the
+        /// links are requested through it - the only way a link row is addressed.
+        /// </summary>
+        protected override async Task<Company> SingleAugment(Company company)
         {
             if (company?.LogoImage?.Url != null)
                 company.LogoImage.ResolvedUrl = _fileStoreService.ResolvePublicUrl(_tenantContext.AppId, company.LogoImage.Url);
-            return Task.FromResult(company!);
+
+            if (company is not null)
+            {
+                var links = await _companyContactLinkService.GetByParentAsync(company);
+
+                company.Contacts = links.Value?
+                    .Select(link => link.Contact)
+                    .Where(contact => contact is not null)
+                    .Select(contact => contact!)
+                    .ToList() ?? new List<Contact>();
+            }
+
+            return company!;
         }
     }
 }

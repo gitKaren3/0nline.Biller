@@ -70,6 +70,12 @@ for file in os.listdir(interface_folder_path):
         print(f"Skipped {interface_name} (child service, no top-level controller)")
         continue
 
+    # A link service is pair-scoped: addressed by the two rows it joins, never by a
+    # key of its own.
+    if "IDLLinkService" in inheritance:
+        print(f"Skipped {interface_name} (link service, no top-level controller)")
+        continue
+
     entity_name = interface_name[1:].replace("Service", "")
     controller_name = entity_name + "Controller"
 
