@@ -17,7 +17,6 @@ connection_string = config["ConnectionString"]
 scope = config["Scope"]
 Depluralize = config.get("Depluralize", "false").lower() == "true"
 base_class = config.get("BaseClass", "{base_class}")
-quote_identifier_format = config.get("QuoteIdentifierFormat", "\"{0}\"")  # default Postgres
 
 # LookupLabels is APP-SPECIFIC configuration, not part of the schema or the
 # shared libraries. Each app's SqlQueryGenerator.json declares its own labels
@@ -30,25 +29,21 @@ quote_identifier_format = config.get("QuoteIdentifierFormat", "\"{0}\"")  # defa
 lookup_labels = config.get("LookupLabels", {})
 
 # LookupFilters narrows what a picker offers. It is app-specific too, and it is
-# a raw SQL predicate appended to the lookup's WHERE: the configuration carries
-# the domain rule ("a client list must not include my own profile"), which the
-# generator cannot infer from the schema.
-#
-#   "LookupFilters": {
-#     "Contact": "\"ID\" IS DISTINCT FROM (SELECT \"ContactID\" FROM \"Tenant\" WHERE \"ID\" = @TenantId)"
-#   }
+# a raw SQL predicate ANDed to the lookup's WHERE. The configuration carries the
+# domain rule ("a client list must not include my own profile"), which the
+# generator cannot infer from the schema. It is passed through as-is: it is not
+# made dialect-neutral, so a predicate such as IS DISTINCT FROM remains
+# Postgres-only by design.
 lookup_filters = config.get("LookupFilters", {})
 
-def quote_identifier(name: str) -> str:
-    """Apply configured identifier quoting format."""
-    return quote_identifier_format.format(name)
+def csharp_string(value: str) -> str:
+    """Escape a value for a C# string literal emitted below."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
-def csharp_sql(sql: str) -> str:
-    """Escape a SQL fragment for the C# string the generator emits."""
-    return (sql.replace("\\", "\\\\")
-               .replace('"', '\\"')
-               .replace("{", "{{")
-               .replace("}", "}}"))
+
+def csharp_string_list(values) -> str:
+    return "new[] { " + ", ".join(f'"{csharp_string(v)}"' for v in values) + " }"
+
 
 def get_class_name(table_name: str) -> str:
     if Depluralize:
@@ -83,11 +78,10 @@ if unknown_tables:
 
 for table_name, table_schema in tables:
     class_name = get_class_name(table_name)
-    is_tenant_aware = False
-    active_Column = ""
-    tenant_column_name = "TenantID"
+    active_column = ""
 
-    # Primary key
+    # Primary key: every column, in schema order. A composite key is a fact about
+    # the table, not something the generator may collapse to its first column.
     cur.execute("""
         SELECT kcu.column_name
         FROM information_schema.table_constraints tc
@@ -97,10 +91,10 @@ for table_name, table_schema in tables:
         WHERE tc.constraint_type = 'PRIMARY KEY'
           AND tc.table_name = %s
           AND tc.table_schema = %s
-        LIMIT 1;
+        ORDER BY kcu.ordinal_position;
     """, (table_name, table_schema))
-    pk_row = cur.fetchone()
-    pk_column = pk_row[0] if pk_row else ""
+    pk_columns = [row[0] for row in cur.fetchall()]
+    pk_column = pk_columns[0] if pk_columns else ""
 
     # Columns
     cur.execute("""
@@ -115,24 +109,23 @@ for table_name, table_schema in tables:
     value_column = ""
     editable_fields = []
     for col_name, data_type, is_identity, generation_expression, column_default in columns:
-        if col_name.lower() == "tenantid":
-            is_tenant_aware = True
-            tenant_column_name = col_name
-
         if data_type == "boolean" and "active" in col_name.lower():
-            active_Column = col_name
+            active_column = col_name
+
         if not value_column and ("char" in data_type or "text" in data_type) \
            and col_name.lower() != pk_column.lower() and col_name.lower() != "tenantid":
             value_column = col_name
-        if col_name.lower() == pk_column.lower():
-            continue
 
         if is_identity == "YES":
+            continue
+        if column_default and "nextval" in column_default:
             continue
         if generation_expression and generation_expression.strip():
             continue
 
-        editable_fields.append(f"\"{col_name}\"")
+        # Writable columns, keys included: a composite key is itself a writable
+        # foreign key on a link table.
+        editable_fields.append(col_name)
 
     column_names = [c[0] for c in columns]
 
@@ -142,10 +135,8 @@ for table_name, table_schema in tables:
     # "Jones, Harriet". The generator cannot infer a name order or a separator
     # from the schema, so LookupLabels declares it per app.
     #
-    # The label must be one SQL expression: DbService.GetLookupAsync reads the
-    # result positionally (column 1 = key, column 2 = label), so a label cannot
-    # be assembled from two returned columns. concat_ws skips NULL parts, so one
-    # empty field does not blank the whole label.
+    # With no text column at all the label is the key, which the dialect renders
+    # as a cast to text.
     label = lookup_labels.get(table_name)
     if label:
         label_columns = label.get("columns", [])
@@ -155,35 +146,28 @@ for table_name, table_schema in tables:
                 f"LookupLabels['{table_name}'] declares no columns" if not label_columns
                 else f"LookupLabels['{table_name}'] names columns that do not exist: {missing}"
             )
-
-        separator = label.get("separator", " ").replace("'", "''")
-        value_expression = "concat_ws('{}', {})".format(
-            separator,
-            ", ".join(quote_identifier(c) for c in label_columns),
-        )
+        label_separator = label.get("separator", " ")
     elif value_column:
-        value_expression = quote_identifier(value_column)
+        label_columns = [value_column]
+        label_separator = " "
     else:
-        # No text column to label with: fall back to the key as text. The old
-        # fallback was an empty string that was then quoted as an identifier
-        # ("''"), which is a zero-length identifier and a runtime SQL error.
-        value_expression = f"CAST({quote_identifier(pk_column)} AS text)"
+        label_columns = []
+        label_separator = " "
 
-    # LookupFilters narrows the picker: the rule lives in the app's config because
-    # it is domain knowledge, not schema. One line, no trailing statement
-    # terminator, then escaped for the C# string emitted below.
+    if label_columns:
+        columns_literal = csharp_string_list(label_columns)
+        label_literal = f'new LookupLabel({columns_literal}, "{csharp_string(label_separator)}")'
+    else:
+        label_literal = "LookupLabel.Key"
+
     lookup_filter = " ".join(lookup_filters.get(table_name, "").split()).rstrip(";")
-    lookup_filter_cs = csharp_sql(lookup_filter) if lookup_filter else ""
+    filter_literal = f'"{csharp_string(lookup_filter)}"' if lookup_filter else "null"
 
-    tenant_filter_cs = f"{quote_identifier(tenant_column_name)} = @TenantId"
-    if lookup_filter_cs:
-        tenant_filter_cs = f"{tenant_filter_cs} AND ({lookup_filter_cs})"
+    active_literal = f'"{csharp_string(active_column)}"' if active_column else "null"
 
-    fields_array = f"new string[] {{ {', '.join(editable_fields)} }}"
-
-    # Build class code
     class_code = []
     class_code.append(f"using {modelsns};")
+    class_code.append("using _0nline.Shared.Db.Contract.Models;")
     class_code.append("using _0nline.Shared.Db.Service;")
     class_code.append("")
     class_code.append(f"/// This is auto-generated from QueryGenerator.py - do not modify.")
@@ -192,30 +176,15 @@ for table_name, table_schema in tables:
     class_code.append(f"    {scope} partial class {class_name}{base_class} : {base_class}<{class_name}>")
     class_code.append("    {")
     class_code.append(f"        public {class_name}{base_class}()")
-    class_code.append(f"            : base(\"{table_name}\", {fields_array}, \"{pk_column}\")")
-    class_code.append(f"        {{ }}")
-
-    if is_tenant_aware:
-        class_code.append(f"        public override string AllQuery => AddFilter(base.AllQuery, \"{quote_identifier(tenant_column_name)} = @TenantId\");")
-        if pk_column:
-            class_code.append(f"        public override string ByIdQuery => AddFilter(base.ByIdQuery, \"{quote_identifier(tenant_column_name)} = @TenantId\");")
-        class_code.append(f"        public override string LookupQuery => AddFilter($\"SELECT {quote_identifier(pk_column)}, {value_expression} FROM {quote_identifier(table_name)}\", \"{tenant_filter_cs}\");")
-        class_code.append(f"        public override string UpdateQuery => AddFilter(base.UpdateQuery, \"{quote_identifier(tenant_column_name)} = @TenantId\");")
-        class_code.append(f"        public override string DeleteQuery => AddFilter(base.DeleteQuery, \"{quote_identifier(tenant_column_name)} = @TenantId\");")
-    else:
-        class_code.append("        public override string AllQuery => base.AllQuery;")
-        if pk_column:
-            class_code.append("        public override string ByIdQuery => base.ByIdQuery;")
-        lookup_where = f" WHERE ({lookup_filter_cs})" if lookup_filter_cs else ""
-        class_code.append(f"        public override string LookupQuery => $\"SELECT {quote_identifier(pk_column)} AS Key, {value_expression} AS Value FROM {quote_identifier(table_name)}{lookup_where}\";")
-        class_code.append("        public override string UpdateQuery => base.UpdateQuery;")
-        class_code.append("        public override string DeleteQuery => base.DeleteQuery;")
-
-    if active_Column:
-        class_code.append(f'        public override string DeactivateQuery => $"UPDATE {quote_identifier(table_name)} SET {quote_identifier(active_Column)} = FALSE WHERE {quote_identifier(pk_column)} = @Id RETURNING *";')
-    else:
-        class_code.append("        public override string DeactivateQuery => string.Empty;")
-
+    class_code.append(f'            : base(new DbTableDescriptor("{csharp_string(table_name)}")')
+    class_code.append("            {")
+    class_code.append(f"                KeyColumns = {csharp_string_list(pk_columns)},")
+    class_code.append(f"                EditableColumns = {csharp_string_list(editable_fields)},")
+    class_code.append(f"                ActiveColumn = {active_literal},")
+    class_code.append(f"                LookupLabel = {label_literal},")
+    class_code.append(f"                LookupFilter = {filter_literal}")
+    class_code.append("            })")
+    class_code.append("        { }")
     class_code.append("    }")
     class_code.append("}")
 
