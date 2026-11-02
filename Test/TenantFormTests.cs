@@ -58,6 +58,89 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
     }
 
     [Fact]
+    public async Task EmptyCellNumberBlocksSubmit()
+    {
+        var (tenant, contact, _) = CompleteTenant();
+
+        var cut = Render<TenantForm>(p => p.Add(x => x.Tenant, tenant));
+
+        await InvokeOnSubmitAsync(cut);
+
+        Assert.Empty(_contacts.Updated);
+        Assert.Empty(_contacts.Created);
+        Assert.Equal((null, null), _tenants.Attached);
+    }
+
+    [Fact]
+    public async Task InvalidCellNumberBlocksSubmit()
+    {
+        var (tenant, contact, _) = CompleteTenant();
+        contact.CellNo = "+27821111111";
+
+        var cut = Render<TenantForm>(p => p.Add(x => x.Tenant, tenant));
+
+        var input = cut.FindAll("input").First(i => i.GetAttribute("aria-required") == "true");
+        input.Change("12345");
+        input.Blur(new FocusEventArgs());
+        cut.WaitForAssertion(() => Assert.Contains("Invalid Phone Number", cut.Markup));
+
+        await InvokeOnSubmitAsync(cut);
+
+        Assert.Empty(_contacts.Updated);
+        Assert.Empty(_contacts.Created);
+        Assert.Equal((null, null), _tenants.Attached);
+    }
+
+    [Fact]
+    public async Task CorrectingCellNumberClearsTheBlockedError()
+    {
+        var (tenant, contact, _) = CompleteTenant();
+        contact.CellNo = "+27821111111";
+
+        var cut = Render<TenantForm>(p => p.Add(x => x.Tenant, tenant));
+
+        var input = cut.FindAll("input").First(i => i.GetAttribute("aria-required") == "true");
+        input.Change("12345");
+        input.Blur(new FocusEventArgs());
+        await InvokeOnSubmitAsync(cut);
+
+        Assert.Empty(_contacts.Updated);
+        cut.WaitForAssertion(() => Assert.Contains("Invalid Phone Number", cut.Markup));
+
+        input = cut.FindAll("input").First(i => i.GetAttribute("aria-required") == "true");
+        input.Change("0829999999");
+        input.Blur(new FocusEventArgs());
+
+        Assert.DoesNotContain("Invalid Phone Number", cut.Markup);
+        Assert.Equal("+27829999999", contact.CellNo);
+
+        await InvokeOnSubmitAsync(cut);
+
+        Assert.Equal(new[] { 26 }, _contacts.Updated);
+        Assert.Equal((26, 16), _tenants.Attached);
+    }
+
+    [Fact]
+    public async Task ClearedCellNumberBlocksSubmit()
+    {
+        var (tenant, contact, _) = CompleteTenant();
+        contact.CellNo = "+27821111111";
+
+        var cut = Render<TenantForm>(p => p.Add(x => x.Tenant, tenant));
+
+        var input = cut.FindAll("input").First(i => i.GetAttribute("aria-required") == "true");
+        input.Change(string.Empty);
+        input.Blur(new FocusEventArgs());
+        cut.WaitForAssertion(() => Assert.Contains("Required", cut.Markup));
+
+        await InvokeOnSubmitAsync(cut);
+
+        Assert.Empty(_contacts.Updated);
+        Assert.Empty(_contacts.Created);
+        Assert.Equal((null, null), _tenants.Attached);
+    }
+
+    [Fact]
     public async Task ExistingProfileSavesChildrenThenAttachesThemToTheTenant()
     {
         var contact = new Contact
@@ -139,6 +222,50 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
         Assert.Equal((101, 201), _tenants.Attached);
         Assert.False(_tenants.RegisterCalled);
         Assert.NotNull(saved);
+    }
+
+    private static (Tenant Tenant, Contact Contact, Company Company) CompleteTenant()
+    {
+        var contact = new Contact
+        {
+            ID = 26,
+            TenantID = 19,
+            UserId = 7,
+            FirstName = "Harriet",
+            Surname = "Jones",
+            Email = "harriet@flamingo.co.za"
+        };
+
+        var company = new Company
+        {
+            ID = 16,
+            TenantID = 19,
+            Name = "Flamingo Hair Design",
+            Address = "1 Main Road",
+            AddressCity = "Cape Town"
+        };
+
+        var tenant = new Tenant
+        {
+            ID = 19,
+            UserId = 7,
+            TierID = 1,
+            ContactID = contact.ID,
+            CompanyID = company.ID,
+            Contact = contact,
+            Company = company
+        };
+
+        return (tenant, contact, company);
+    }
+
+    private static async Task InvokeOnSubmitAsync(IRenderedComponent<TenantForm> cut)
+    {
+        var method = typeof(TenantForm)
+            .GetMethod("OnSubmit", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(method);
+        await (Task)method!.Invoke(cut.Instance, null)!;
     }
 
     private static async Task InvokeOnValidSubmitAsync(IRenderedComponent<TenantForm> cut)
