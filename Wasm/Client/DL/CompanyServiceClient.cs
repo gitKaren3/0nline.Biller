@@ -19,6 +19,7 @@ namespace _0nline.Biller.Wasm.Client.DL
         public new Task<Result<Company>> CreateAsync(Company entity) => base.CreateAsync(entity);
         public new Task<Result<Company?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
         public new Task<Result<Company>> UpdateAsync(Company entity) => base.UpdateAsync(entity);
-        
+
+        public Task<Result<Company[]>> ListClientsAsync() => GetAndHandleAsync<Company[]>("clients");
     }
 }

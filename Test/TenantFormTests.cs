@@ -362,6 +362,8 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
 
     private sealed class RecordingCompanyService : ICompanyService
     {
+        public Task<Result<Company[]>> ListClientsAsync()
+            => Task.FromResult(Result<Company[]>.Success(Array.Empty<Company>()));
         public List<int> Updated { get; } = new();
         public List<int> Created { get; } = new();
         private int _nextId = 201;

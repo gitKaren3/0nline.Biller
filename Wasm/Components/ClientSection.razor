@@ -1,0 +1,313 @@
+@inject ICompanyService CompanyService
+@inject IServiceProvider ServiceProvider
+@inject ISnackbar Snackbar
+
+@* The tenant's clients (companies with a billing contact). Loads and saves itself. *@
+
+@if (ShowHeading)
+{
+    <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">Clients</MudText>
+}
+
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-4 d-block mx-auto" />
+}
+else if (_loadError != null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="my-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudText>@_loadError</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ReloadAsync">Try again</MudButton>
+        </MudStack>
+    </MudAlert>
+}
+else if (_editing)
+{
+    
+    <ClientForm @ref="_form" Model="_model" /> 
+
+    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+        <MudButton OnClick="CancelEdit" Disabled="_saving">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="SaveAsync" Disabled="_saving">
+            @(_saving ? "Saving..." : "Save client")
+        </MudButton>
+    </MudStack>
+}
+else
+{
+    <MudText Typo="Typo.body2" Class="mb-4">
+        The companies and people you invoice. Each client needs at least a business name and a billing contact.
+    </MudText>
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+        <MudText Typo="Typo.subtitle1">
+            @(_clients.Count == 0 ? "No clients yet" : "Saved clients")
+        </MudText>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="Add">
+            Add client
+        </MudButton>
+    </MudStack>
+
+    @if (_clients.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mt-2">
+            Add the companies you invoice. Each one needs a billing contact.
+        </MudText>
+    }
+    else
+    {
+        <MudPaper Outlined="true" Elevation="0" Class="mt-3">
+            @for (int i = 0; i < _clients.Count; i++)
+            {
+                var client = _clients[i];
+
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
+                          Class="px-4 py-3">
+                    <MudStack Spacing="0">
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                            <MudText Typo="Typo.subtitle2">@client.Name</MudText>
+                        </MudStack>
+                        <MudText Typo="Typo.body2">
+                            @if (client.BillingContact is Contact bc)
+                            {
+                                @($"{bc.Surname}, {bc.FirstName}")
+                            }
+                            else if (client.BillingContactID.HasValue)
+                            {
+                                @($"Contact #{client.BillingContactID}")
+                            }
+                            else
+                            {
+                                @("No billing contact")
+                            }
+                        </MudText>
+                    </MudStack>
+
+                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                        @if (_confirmRemoveId == client.ID)
+                        {
+                            <MudText Typo="Typo.body2">Remove?</MudText>
+                            <MudButton Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => RemoveAsync(client))">Yes</MudButton>
+                            <MudButton Size="Size.Small" OnClick="@(() => _confirmRemoveId = null)">No</MudButton>
+                        }
+                        else
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           aria-label="Edit client" OnClick="@(() => EditAsync(client))" />
+
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           aria-label="Remove client"
+                                           OnClick="@(() => _confirmRemoveId = client.ID)" />
+                        }
+                    </MudStack>
+                </MudStack>
+
+                @if (i < _clients.Count - 1)
+                {
+                    <MudDivider />
+                }
+            }
+        </MudPaper>
+    }
+}
+
+@code {
+    [Parameter] public bool ShowHeading { get; set; } = true;
+
+    private const string LoadErrorMessage = "We could not load your clients. Please try again.";
+
+    private List<Company> _clients = new();
+    private Company _model = new() { BillingContact = new Contact() };
+
+    private ClientForm? _form;
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _editing;
+    private string? _loadError;
+    private int? _confirmRemoveId;
+
+    private IContactService? ContactService => ServiceProvider.GetService<IContactService>();
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        try
+        {
+            var result = await CompanyService.ListClientsAsync();
+
+            if (result.Successful && result.Value is Company[] companies)
+            {
+                _clients = companies.ToList();
+            }
+            else
+            {
+                _loadError = Describe(result, LoadErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"{LoadErrorMessage} ({ex.Message})";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Add()
+    {
+        _confirmRemoveId = null;
+        _model = new Company { BillingContact = new Contact() };
+        _editing = true;
+    }
+
+    private async Task EditAsync(Company client)
+    {
+        _confirmRemoveId = null;
+
+        // The list carries the billing contact, but the detail read also loads the
+        // linked contacts and any other navigation. Fall back to the list row if the
+        // detail read is unavailable, so editing never opens on an empty form.
+        try
+        {
+            var result = await CompanyService.GetOneAsync(client.ID);
+            var source = result.Successful && result.Value is Company loaded ? loaded : client;
+
+            // The list already carries the billing contact; keep it if the detail
+            // read is older or was not augmented, so the form never opens with a
+            // blank contact that the list could have filled in.
+            source.BillingContact ??= client.BillingContact;
+            source.BillingContactID ??= client.BillingContactID;
+
+            _model = Clone(source);
+        }
+        catch
+        {
+            _model = Clone(client);
+        }
+
+        _editing = true;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = false;
+        _model = new Company { BillingContact = new Contact() };
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+
+        if (_form?.Validate() != true) return;
+
+        _saving = true;
+
+        try
+        {
+            var contact = _model.BillingContact ?? new Contact();
+            if (ContactService != null)
+            {
+                var savedContact = contact.ID > 0
+                    ? await ContactService.UpdateAsync(contact)
+                    : await ContactService.CreateAsync(contact);
+
+                if (!savedContact.Successful || savedContact.Value is not Contact c)
+                {
+                    Snackbar.Add(Describe(savedContact, "The contact could not be saved."), Severity.Error);
+                    return;
+                }
+
+                _model.BillingContactID = c.ID;
+                _model.BillingContact = c;
+            }
+
+            var savedCompany = _model.ID > 0
+                ? await CompanyService.UpdateAsync(_model)
+                : await CompanyService.CreateAsync(_model);
+
+            if (!savedCompany.Successful || savedCompany.Value is not Company company)
+            {
+                Snackbar.Add(Describe(savedCompany, "The client could not be saved."), Severity.Error);
+                return;
+            }
+
+            company.BillingContact ??= _model.BillingContact;
+            company.BillingContactID ??= _model.BillingContactID;
+
+            Snackbar.Add("Client saved.", Severity.Success);
+            _editing = false;
+            _model = new Company { BillingContact = new Contact() };
+
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RemoveAsync(Company client)
+    {
+        _confirmRemoveId = null;
+
+        try
+        {
+            var result = await CompanyService.DeleteOrDeactivateAsync(client.ID);
+
+            if (!result.Successful)
+            {
+                Snackbar.Add(Describe(result, "That client could not be removed."), Severity.Error);
+                return;
+            }
+
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Remove failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static Company Clone(Company client) => new()
+    {
+        ID = client.ID,
+        TenantID = client.TenantID,
+        Name = client.Name,
+        Registration = client.Registration,
+        Address = client.Address,
+        AddressCity = client.AddressCity,
+        AddressCode = client.AddressCode,
+        AddressCountry = client.AddressCountry,
+        Phone = client.Phone,
+        BillingContactID = client.BillingContactID,
+        Active = client.Active,
+        BillingContact = client.BillingContact is null ? new Contact() : new Contact
+        {
+            ID = client.BillingContact.ID,
+            TenantID = client.BillingContact.TenantID,
+            UserId = client.BillingContact.UserId,
+            FirstName = client.BillingContact.FirstName,
+            Surname = client.BillingContact.Surname,
+            Email = client.BillingContact.Email,
+            CellPhone = client.BillingContact.CellPhone
+        }
+    };
+
+    private static string Describe(Result result, string fallback)
+        => result.Errors.FirstOrDefault()
+            ?? (!string.IsNullOrWhiteSpace(result.Message) ? result.Message : fallback);
+}

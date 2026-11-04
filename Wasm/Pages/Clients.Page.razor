@@ -1,0 +1,16 @@
+@page "/admin/clients"
+
+<PageTitle>e-Biller | Clients</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <MudText Typo="Typo.h3" Class="py-2">Clients</MudText>
+
+        <MudPaper Class="py-3 px-3">
+            <ClientSection ShowHeading="false" />
+        </MudPaper>
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
