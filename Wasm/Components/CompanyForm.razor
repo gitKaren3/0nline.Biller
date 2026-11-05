@@ -1,16 +1,16 @@
 @inject IImageService ImageService
 
 
-@* Reusable company form — owns the company fields, the logo lifecycle, and the EditContext *@
-@* so a host can render it inside any EditForm and still validate it. *@
-@* Parent saves company record *@
+@* Reusable company form — owns the company fields, the logo lifecycle (optional), *@
+@* a billing contact (optional), and the EditContext so a host can render it inside *@
+@* any EditForm and still validate it. Parent saves company (and contact) records. *@
 
 <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">Business details</MudText>
 
 <EditForm @ref="_form" Model="@Model" Class="mt-2">
     <DataAnnotationsValidator />
 
-    <MudGrid>
+    <MudGrid Class="@(ShowBillingContact ? "mb-5" : "")">
         <MudItem xs="12" sm="8" lg="7">
             <MudTextField Label="Business Name" Class="mt-3" ShrinkLabel="true"
                             @bind-Value="Model.Name" For="@(() => Model.Name)" />
@@ -51,44 +51,58 @@
                 For="@(() => Model.PhoneNo)" />
         </MudItem>
 
-        <MudItem xs="12" sm="12" md="10" lg="5" Class="mt-3">
-            <MudText>Business Logo</MudText>
+        @if (ShowLogo)
+        {
+            <MudItem xs="12" sm="12" md="10" lg="5" Class="mt-3">
+                <MudText>Business Logo</MudText>
 
-            @if ( _showUpload || Model.LogoImageID == null )
-            {
-                 <MudStack Row="true" Spacing="2" Class="mb-2" Justify="Justify.FlexEnd">
-                    @if (Model.LogoImageID != null)
-                    {
-                        <MudButton OnClick="CancelReplace" StartIcon="@Icons.Material.Filled.Clear">
-                            <span>Cancel</span>
-                        </MudButton>
-                    }
-                 </MudStack>
-                 <MudPaper Class="pa-6 ma-2" Outlined="true" Elevation="0" >
-                    <ImageUpload @ref="_logoUpload" T="Image"
-                                    Category="Logo" Caption="My Business Logo"
-                                    FileSelected="OnLogoSelected"
-                                    FileCleared="OnLogoCleared" />
-                </MudPaper>
-            }
-            else
-            {
-               <MudStack Row="true" Spacing="2" Class="mb-2" Justify="Justify.FlexEnd">
-                    <MudButton OnClick="ShowUploader" StartIcon="@Icons.Material.Filled.SwapHoriz">Replace</MudButton>
-                    <MudButton OnClick="RemoveLogo" StartIcon="@Icons.Material.Filled.Delete">Remove</MudButton>
-               </MudStack>
-               <MudPaper Class="pa-6 ma-2" Outlined="true">
+                @if ( _showUpload || Model.LogoImageID == null )
+                {
+                     <MudStack Row="true" Spacing="2" Class="mb-2" Justify="Justify.FlexEnd">
+                        @if (Model.LogoImageID != null)
+                        {
+                            <MudButton OnClick="CancelReplace" StartIcon="@Icons.Material.Filled.Clear">
+                                <span>Cancel</span>
+                            </MudButton>
+                        }
+                     </MudStack>
+                     <MudPaper Class="pa-6 ma-2" Outlined="true" Elevation="0" >
+                        <ImageUpload @ref="_logoUpload" T="Image"
+                                        Category="Logo" Caption="My Business Logo"
+                                        FileSelected="OnLogoSelected"
+                                        FileCleared="OnLogoCleared" />
+                    </MudPaper>
+                }
+                else
+                {
+                   <MudStack Row="true" Spacing="2" Class="mb-2" Justify="Justify.FlexEnd">
+                        <MudButton OnClick="ShowUploader" StartIcon="@Icons.Material.Filled.SwapHoriz">Replace</MudButton>
+                        <MudButton OnClick="RemoveLogo" StartIcon="@Icons.Material.Filled.Delete">Remove</MudButton>
+                   </MudStack>
+                   <MudPaper Class="pa-6 ma-2" Outlined="true">
 
-                    <MudImage Src="@Model.LogoImage?.ResolvedUrl" Style="width:100%;" />
-                </MudPaper>
-            }
-        </MudItem>
+                        <MudImage Src="@Model.LogoImage?.ResolvedUrl" Style="width:100%;" />
+                    </MudPaper>
+                }
+            </MudItem>
+        }
     </MudGrid>
+
+    @if (ShowBillingContact)
+    {
+        <ContactCapture Model="@BillingContact" Title="Billing Contact" />
+    }
 </EditForm>
 
 @code {
     /// <summary>The company being edited. Two-way bound so the host can read the result.</summary>
     [Parameter, EditorRequired] public Company Model { get; set; } = default!;
+
+    /// <summary>Whether to render the business logo picker.</summary>
+    [Parameter] public bool ShowLogo { get; set; } = true;
+
+    /// <summary>Whether to render the billing contact capture.</summary>
+    [Parameter] public bool ShowBillingContact { get; set; } = false;
 
     private EditForm? _form;
     private ImageUpload<Image>? _logoUpload;
@@ -117,6 +131,17 @@
     /// lost, so the upload was skipped silently. Only reset when the model itself changes.
     /// </summary>
     private Company? _stateModel;
+
+    /// <summary>The billing contact captured alongside the company.</summary>
+    private Contact BillingContact
+    {
+        get
+        {
+            Model.BillingContact ??= new Contact();
+            return Model.BillingContact;
+        }
+        set => Model.BillingContact = value;
+    }
 
     /// <summary>Exposes the EditContext so a host can validate this form alongside others.</summary>
     public EditContext? EditContext => _form?.EditContext;
@@ -189,8 +214,18 @@
         }
     }
 
+    /// <summary>Runs field validation and reports the verdict.</summary>
+    public bool Validate() => EditContext?.Validate() == true;
+
     protected override void OnParametersSet()
     {
+        if (ShowBillingContact)
+        {
+            Model.BillingContact ??= new Contact();
+        }
+
+        if (!ShowLogo) return;
+
         if (ReferenceEquals(_stateModel, Model)) return;
 
         _stateModel = Model;
@@ -220,5 +255,4 @@
     private void OnLogoSelected(string fileName) => _logoSelected = true;
 
     private void OnLogoCleared() => _logoSelected = false;
-
 }

@@ -27,7 +27,7 @@
             else if (_editing)
             {
 
-                <ClientForm @ref="_form" Model="_model" />
+                <CompanyForm @ref="_form" Model="_model" ShowLogo="false" ShowBillingContact="true" />
 
                 <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
                     <MudButton OnClick="CancelEdit" Disabled="_saving">Cancel</MudButton>
@@ -128,7 +128,7 @@
     private List<Company> _clients = new();
     private Company _model = new() { BillingContact = new Contact() };
 
-    private ClientForm? _form;
+    private CompanyForm? _form;
 
     private bool _loading = true;
     private bool _saving;
