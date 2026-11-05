@@ -12,6 +12,27 @@ dotnet build Z_0nline.Biller.slnx --artifacts-path /tmp/opencode/biller-artifact
 
 Never omit `--artifacts-path`. Without it you get MSB3374 errors on `.Up2Date` markers, and the build writes into the tree's `obj/` and `bin/` — ignored now, but there is no reason to keep them there.
 
+## Filesystem permissions on the share
+
+This tree sits on a Samba mount shared with Windows. Files created from the Linux
+side are not group-writable by default, so the Windows build fails with
+"Access to the path ... is denied" and new untracked files can be edited only by
+the Linux user that created them.
+
+Always set the umask before writing:
+
+```bash
+umask 002
+```
+
+After creating new files, make them group-writable (and directories setgid) so the
+Windows side can edit them too:
+
+```bash
+find . -type f ! -perm -g+w -print0 | xargs -0 chmod g+w
+find . -type d ! -perm -g+w -print0 | xargs -0 chmod g+ws
+```
+
 ## Git
 
 Git on this Samba mount needs both `-C` and `safe.directory` (dubious ownership otherwise):
