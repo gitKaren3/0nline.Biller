@@ -4,5 +4,8 @@
   "ConnectionString": "host=localhost port=5432 dbname=0nline.Biller user=pilot password=hermes",
   "Scope": "public",
   "IncludeAnnotations": "true",
-  "Depluralize": "false"
+  "Depluralize": "false",
+  "EnumTables": ["Tier", "InvoiceStatus"],
+  "EnumOutputDir": "../DL.Contract/Enums/Generated",
+  "EnumNamespace": "_0nline.Biller.DL.Contract.Enums"
 }

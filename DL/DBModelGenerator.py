@@ -1,6 +1,7 @@
 ﻿import psycopg2
 import json
 import os
+import re
 
 # Load config
 base_dir = os.path.dirname(__file__)
@@ -236,8 +237,224 @@ for table_name, table_schema in tables:
     with open(out_path, "w") as f:
         f.write("\n".join(class_code))
     count += 1
-    
+
+# ---------------------------------------------------------------------------
+# Enum generation (config-driven)
+# ---------------------------------------------------------------------------
+
+CS_KEYWORDS = {
+    "abstract","as","base","bool","break","byte","case","catch","char","checked",
+    "class","const","continue","decimal","default","delegate","do","double","else",
+    "enum","event","explicit","extern","false","finally","fixed","float","for",
+    "foreach","goto","if","implicit","in","int","interface","internal","is","lock",
+    "long","namespace","new","null","object","operator","out","override","params",
+    "private","protected","public","readonly","ref","return","sbyte","sealed",
+    "short","sizeof","stackalloc","static","string","struct","switch","this",
+    "throw","true","try","typeof","uint","ulong","unchecked","unsafe","ushort",
+    "using","virtual","void","volatile","while",
+}
+
+def _cfg(*keys, default=None):
+    for k in keys:
+        if k in config:
+            return config[k]
+    for container_key in ("Enums", "Enum", "EnumsConfig", "EnumConfig"):
+        container = config.get(container_key)
+        if isinstance(container, dict):
+            for k in keys:
+                if k in container:
+                    return container[k]
+    return default
+
+def _normalize_enum_tables(raw):
+    specs = []
+    if raw is None:
+        return specs
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str):
+                specs.append((item.strip(), {}))
+            elif isinstance(item, dict):
+                name = (item.get("Table") or item.get("TableName")
+                        or item.get("Name") or item.get("table")
+                        or item.get("name"))
+                if not name:
+                    continue
+                opts = {k: v for k, v in item.items()
+                        if k not in ("Table", "TableName", "Name", "table", "name")}
+                specs.append((str(name).strip(), opts))
+    elif isinstance(raw, dict):
+        for k, v in raw.items():
+            if isinstance(v, dict):
+                specs.append((str(k).strip(), v))
+            else:
+                specs.append((str(k).strip(), {}))
+    return specs
+
+def _map_enum_type(sql_type: str) -> str:
+    sql_type = (sql_type or "").lower()
+    if sql_type in ("smallint", "int2"):
+        return "short"
+    elif sql_type in ("integer", "int", "int4"):
+        return "int"
+    elif sql_type in ("bigint", "int8"):
+        return "long"
+    elif sql_type in ("tinyint",):
+        return "byte"
+    return "int"
+
+def _sanitize_member(name: str) -> str:
+    tokens = re.findall(r"[A-Za-z0-9]+", name or "")
+    if not tokens:
+        return ""
+    ident = "".join(tok.capitalize() for tok in tokens)
+    if ident and ident[0].isdigit():
+        ident = "_" + ident
+    if ident.lower() in CS_KEYWORDS:
+        ident = "@" + ident
+    return ident
+
+def _get_pk_columns(tname, tschema):
+    cols = set()
+    cur.execute("""
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+          AND tc.table_name = %s
+          AND tc.table_schema = %s;
+    """, (tname, tschema))
+    for row in cur.fetchall():
+        cols.add(row[0])
+    return cols
+
+enum_tables_raw = _cfg("EnumTables", "Enums", "EnumTableNames",
+                       "EnumTablesList", "EnumsTables", "EnumEntities")
+enum_specs = _normalize_enum_tables(enum_tables_raw)
+
+enum_output_dir_raw = _cfg("EnumOutputDir", "EnumsOutputDir", "EnumOutputDirectory",
+                          "EnumsOutputDirectory", "EnumDir", "EnumsDir")
+if enum_output_dir_raw is None:
+    enum_output_dir_raw = "../DL.Contract/Enums/Generated"
+enum_output_dir = os.path.abspath(os.path.join(base_dir, enum_output_dir_raw))
+os.makedirs(enum_output_dir, exist_ok=True)
+
+enum_ns = _cfg("EnumNamespace", "EnumsNamespace", "EnumNs", "EnumsNs")
+if enum_ns is None:
+    enum_ns = ns.replace("Models.db", "Enums")
+    if enum_ns == ns:
+        enum_ns = ns + ".Enums"
+
+enum_count = 0
+for table_name, opts in enum_specs:
+    # columns
+    cur.execute("""
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = %s AND table_schema = %s
+        ORDER BY ordinal_position;
+    """, (table_name, scope))
+    columns = cur.fetchall()
+    col_types = {c[0]: c[1] for c in columns}
+    col_names = [c[0] for c in columns]
+
+    pk_cols = _get_pk_columns(table_name, scope)
+    # key column
+    key_col = opts.get("KeyColumn") or opts.get("key_column") or opts.get("IdColumn") or opts.get("id_column")
+    if not key_col:
+        if pk_cols:
+            key_col = sorted(pk_cols)[0]
+        elif "ID" in col_types:
+            key_col = "ID"
+        elif "Id" in col_types:
+            key_col = "Id"
+        else:
+            key_col = col_names[0] if col_names else "ID"
+
+    # name column
+    name_col = (opts.get("NameColumn") or opts.get("name_column")
+                or opts.get("LabelColumn") or opts.get("label_column")
+                or opts.get("DisplayNameColumn"))
+    if not name_col:
+        if "Name" in col_types:
+            name_col = "Name"
+        else:
+            # first non-pk string column
+            for cn, dt in columns:
+                if cn in pk_cols:
+                    continue
+                if dt.lower() in ("character varying", "varchar", "text", "char", "citext"):
+                    name_col = cn
+                    break
+            if not name_col:
+                # first non-pk column
+                for cn in col_names:
+                    if cn not in pk_cols:
+                        name_col = cn
+                        break
+                if not name_col and col_names:
+                    name_col = col_names[0]
+
+    # underlying type
+    underlying = opts.get("UnderlyingType") or opts.get("EnumType") or opts.get("Type") or opts.get("type")
+    if not underlying:
+        underlying = _map_enum_type(col_types.get(key_col, "integer"))
+
+    # fetch rows
+    cur.execute(f'SELECT "{key_col}", "{name_col}" FROM "{table_name}" ORDER BY "{key_col}"')
+    rows = cur.fetchall()
+
+    used = set()
+    members = []
+    for key_val, name_val in rows:
+        raw_name = name_val if name_val is not None else f"Value{key_val}"
+        member = _sanitize_member(str(raw_name))
+        if not member:
+            member = _sanitize_member(f"Value{key_val}")
+        base_member = member
+        i = 2
+        while member in used:
+            member = f"{base_member}_{i}"
+            i += 1
+        used.add(member)
+        # value literal
+        if isinstance(key_val, bool):
+            val_str = "1" if key_val else "0"
+        elif isinstance(key_val, (int,)):
+            val_str = str(key_val)
+        elif isinstance(key_val, float):
+            # enum values should be integral; cast
+            val_str = str(int(key_val))
+        else:
+            try:
+                val_str = str(int(key_val))
+            except (ValueError, TypeError):
+                val_str = repr(key_val)
+        members.append((member, val_str))
+
+    class_name = table_name
+    lines = []
+    lines.append("using System;")
+    lines.append("")
+    lines.append("/// Auto Generated by DBModelGenerator.py - do not modify")
+    lines.append(f"namespace {enum_ns}")
+    lines.append("{")
+    lines.append(f"    public enum {class_name} : {underlying}")
+    lines.append("    {")
+    for idx, (member, val_str) in enumerate(members):
+        comma = "," if idx < len(members) - 1 else ""
+        lines.append(f"        {member} = {val_str}{comma}")
+    lines.append("    }")
+    lines.append("}")
+
+    out_path = os.path.join(enum_output_dir, f"{class_name}.cs")
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+    enum_count += 1
+
 cur.close()
 conn.close()
-print(f"DBModelGenerator completed successfully. Generated {count} files.")
+print(f"DBModelGenerator completed successfully. Generated {count} model files and {enum_count} enum files.")
 
