@@ -46,10 +46,6 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [Required(ErrorMessage = "Required")]
         public short InvoiceStatusID { get; set; } = 0;
 
-        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        [Editable(true)]
-        public Guid? Token { get; set; }
-
         // Navigation properties
         public Tenant? Tenant { get; set; }
         public Contact? IssuedToContact { get; set; }

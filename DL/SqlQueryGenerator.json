@@ -8,7 +8,8 @@
   "QuoteIdentifierFormat": "\\\"{0}\\\"",
   "Depluralize": "false",
   "LookupLabels": {
-    "Contact": { "columns": ["Surname", "FirstName"], "separator": ", " }
+    "Contact": { "columns": ["Surname", "FirstName"], "separator": ", " },
+    "InvoiceSnapshot": { "columns": ["Token"], "separator": " " }
   },
   "LookupFilters": {
     "Contact": "\"ID\" IS DISTINCT FROM (SELECT \"ContactID\" FROM \"Tenant\" WHERE \"ID\" = @TenantId)",

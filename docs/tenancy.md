@@ -23,6 +23,7 @@ Tenant scoping is per entity: a table is isolated only when its generated provid
 | `RateType` | no | no | no controller |
 | `InvoiceStatus` | no | no | `api/biller/invoicestatus` |
 | `InvoiceLine` | no | no | read through invoice detail (no controller) |
+| `InvoiceSnapshot` | no | no | `api/biller/invoicesnapshot` (hand-written; public PDF by token) |
 | `CompanyContactLink` | no | no | no controller |
 | `File` | yes | no controller yet | no controller |
 | `test` | no | no | no controller — stray |
@@ -69,9 +70,9 @@ it: demote the others *before* promoting (the partial unique index
 account after a delete or a failed write. The database enforces it too — a second
 default for the same tenant is rejected.
 
-An invoice should snapshot the payee details when it is issued rather than point at
+An invoice snapshots the payee details when it is issued rather than pointing at
 the current row: a tenant that changes banks must not rewrite the instructions on
-invoices already sent. There is no invoice UI yet, so nothing reads these rows today.
+invoices already sent. `InvoiceSnapshot` is where that copy lives (see below).
 
 See [`banking.md`](banking.md) for the table, API and UI.
 
@@ -144,6 +145,39 @@ living in an `Internal/` folder.
 and the contact, never by a key, and `CompanyService.SingleAugment` populates
 `Company.Contacts` from it. Linking checks that the target contact belongs to the current
 tenant, because the foreign key alone would happily point at another tenant's row.
+
+## Invoice snapshots and public links
+
+An invoice is rendered from a snapshot, never from the live rows:
+
+- `InvoiceSnapshot` stores the render model as JSON (`Snapshot`), a `LayoutVersion` and
+  an unguessable `Token`. It has no `TenantID`: like `InvoiceLine` it is a child of
+  `Invoice`, reached through the tenant-filtered invoice or, anonymously, by token.
+- The PDF is **not** stored. `GET api/biller/invoicesnapshot/{token}/pdf` is
+  `[AllowAnonymous]` and regenerates it from the snapshot. That is why the model must be
+  self-contained — issuer, customer, bank details and lines are copied in at issue time,
+  not looked up when the link is opened.
+- `POST api/biller/invoicesnapshot/invoice/{id}` is the signed-in issue step and returns
+  the link. It reuses the live snapshot unless `regenerate=true`, so re-sending a link
+  does not invalidate the one already in the customer's inbox. The read that loads the
+  invoice is tenant-scoped, which is the ownership check.
+- `POST api/biller/invoicesnapshot/{id}/revoke` sets `RevokedAt`. Ownership is proved
+  through the invoice, because the child row has no tenant column.
+- `InvoiceSnapshot` also carries `FirstAccessedAt`, `LastAccessedAt` and `AccessCount`.
+  A successful anonymous render updates them; a signed-in preview does not. `AccessCount`
+  only moves outside a 30-minute window, because one PDF open can issue many range
+  requests. Read this as **"the link was opened"**, not "the invoice was read" — a mail
+  scanner or link previewer can fetch it too.
+- `GET api/biller/invoicesnapshot/invoice/{id}/activity` returns that evidence for the
+  live snapshot (or the newest revoked one). Delivery telemetry is deliberately not part
+  of `InvoiceStatus`: an invoice can be paid without being opened, or opened without being
+  accepted.
+- `Invoice.Token` is not used by this flow. The capability belongs to the snapshot, so
+  revoking a link or issuing a second one never touches the invoice.
+
+Do not add a by-id public read: the id is enumerable and the token is not. Deleting an
+invoice removes its snapshots through the foreign-key cascade, so `TenantService.PurgeAsync`
+needs no extra step.
 
 ## Closing and purging
 
