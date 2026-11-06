@@ -10,6 +10,7 @@ using _0nline.Shared.Db.Contract.Interfaces;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus;
 
 namespace _0nline.Biller.DL.Services
 {
@@ -30,11 +31,7 @@ namespace _0nline.Biller.DL.Services
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
         private readonly IInvoiceService _invoices;
-        private readonly ICompanyService _companies;
-        private readonly IContactService _contacts;
-        private readonly IBankAccountService _bankAccounts;
-        private readonly IRateTypeService _rateTypes;
-        private readonly IPDFRenderer _pdf;
+        private readonly IInvoicePdfService _pdfService;
         private readonly ILogger<InvoiceSnapshotService> _logger;
 
         public InvoiceSnapshotService(
@@ -42,20 +39,12 @@ namespace _0nline.Biller.DL.Services
             ISqlQueryProvider<InvoiceSnapshot> queryService,
             ITenantContext tenancyContext,
             IInvoiceService invoices,
-            ICompanyService companies,
-            IContactService contacts,
-            IBankAccountService bankAccounts,
-            IRateTypeService rateTypes,
-            IPDFRenderer pdf,
+            IInvoicePdfService pdfService,
             ILogger<InvoiceSnapshotService> logger)
             : base(ctx, queryService, tenancyContext)
         {
             _invoices = invoices;
-            _companies = companies;
-            _contacts = contacts;
-            _bankAccounts = bankAccounts;
-            _rateTypes = rateTypes;
-            _pdf = pdf;
+            _pdfService = pdfService;
             _logger = logger;
         }
 
@@ -67,14 +56,27 @@ namespace _0nline.Biller.DL.Services
             if (!loaded.Successful || loaded.Value is not Invoice invoice)
                 return Result<InvoiceSnapshot>.None();
 
+            // Sending is a post-finalize action. A draft has not been checked yet;
+            // a cancelled invoice must not be put in front of a customer again.
+            if (invoice.InvoiceStatusID == (short)InvoiceStatusKind.Draft)
+                return Result<InvoiceSnapshot>.Failure(
+                    ErrorCode.Conflict, "Finalize the invoice before sending it.");
+
+            if (invoice.InvoiceStatusID == (short)InvoiceStatusKind.Cancelled)
+                return Result<InvoiceSnapshot>.Failure(
+                    ErrorCode.Conflict, "A cancelled invoice cannot be sent.");
+
             if (!regenerate)
             {
                 var existing = await ActiveForInvoiceAsync(invoice);
                 if (existing is not null)
+                {
+                    await MarkIssuedAsync(invoice);
                     return Result<InvoiceSnapshot>.Success(existing);
+                }
             }
 
-            var model = await BuildModelAsync(invoice);
+            var model = await _pdfService.BuildModelAsync(invoice);
 
             var snapshot = new InvoiceSnapshot
             {
@@ -84,9 +86,11 @@ namespace _0nline.Biller.DL.Services
             };
 
             var added = await AddAsync(invoice, snapshot);
-            return added.Successful && added.Value is not null
-                ? added
-                : Result<InvoiceSnapshot>.None();
+            if (!added.Successful || added.Value is null)
+                return Result<InvoiceSnapshot>.None();
+
+            await MarkIssuedAsync(invoice);
+            return added;
         }
 
         public async Task<Result<InvoiceSnapshot?>> GetByTokenAsync(Guid token)
@@ -133,8 +137,7 @@ namespace _0nline.Biller.DL.Services
             if (model is null)
                 return Result<byte[]>.None();
 
-            var pdf = await _pdf.RenderAsync(model, cancellationToken);
-            return Result<byte[]>.Success(pdf);
+            return await _pdfService.RenderAsync(model, cancellationToken);
         }
 
         public async Task RecordAccessAsync(Guid token, CancellationToken cancellationToken = default)
@@ -239,40 +242,30 @@ namespace _0nline.Biller.DL.Services
                 .FirstOrDefault();
         }
 
-        private async Task<InvoicePdfModel> BuildModelAsync(Invoice invoice)
+        /// <summary>
+        /// Sending a finalized invoice makes it Issued. The transition is guarded
+        /// in SQL on the current status, so two concurrent sends cannot both win.
+        /// </summary>
+        private async Task MarkIssuedAsync(Invoice invoice)
         {
-            var tenant = invoice.Tenant;
+            if (invoice.InvoiceStatusID != (short)InvoiceStatusKind.Finalized)
+                return;
 
-            Company? issuer = null;
-            if (tenant?.CompanyID is int issuerCompanyId)
-                issuer = (await _companies.GetOneAsync(issuerCompanyId)).Value;
+            using var conn = Connection;
 
-            Contact? issuerContact = null;
-            if (tenant?.ContactID is int issuerContactId)
-                issuerContact = (await _contacts.GetOneAsync(issuerContactId)).Value;
+            await conn.ExecuteAsync(
+                @"UPDATE ""Invoice"" SET ""InvoiceStatusID"" = @Issued
+                  WHERE ""ID"" = @Id AND ""TenantID"" = @TenantId
+                    AND ""InvoiceStatusID"" = @Finalized",
+                new
+                {
+                    Issued = (short)InvoiceStatusKind.Issued,
+                    Finalized = (short)InvoiceStatusKind.Finalized,
+                    Id = invoice.ID,
+                    TenantId = invoice.TenantID
+                });
 
-            Company? customer = null;
-            if (invoice.CompanyID is int customerCompanyId)
-                customer = (await _companies.GetOneAsync(customerCompanyId)).Value;
-
-            var accounts = (await _bankAccounts.GetAllAsync()).Value ?? Array.Empty<BankAccount>();
-            var bank = accounts.FirstOrDefault(account => account.IsDefault == true && account.Active != false)
-                       ?? accounts.FirstOrDefault(account => account.Active != false);
-
-            var rateTypes = (await _rateTypes.GetAllAsync()).Value?
-                .Where(rateType => rateType.ID != 0)
-                .GroupBy(rateType => rateType.ID)
-                .ToDictionary(group => group.Key, group => group.First().Name ?? string.Empty)
-                ?? new Dictionary<short, string>();
-
-            return InvoicePdfModelFactory.Create(
-                invoice,
-                issuer,
-                issuerContact,
-                customer,
-                invoice.IssuedToContact,
-                bank,
-                rateTypes);
+            invoice.InvoiceStatusID = (short)InvoiceStatusKind.Issued;
         }
     }
 }

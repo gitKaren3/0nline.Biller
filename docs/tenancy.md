@@ -160,7 +160,8 @@ An invoice is rendered from a snapshot, never from the live rows:
 - `POST api/biller/invoicesnapshot/invoice/{id}` is the signed-in issue step and returns
   the link. It reuses the live snapshot unless `regenerate=true`, so re-sending a link
   does not invalidate the one already in the customer's inbox. The read that loads the
-  invoice is tenant-scoped, which is the ownership check.
+  invoice is tenant-scoped, which is the ownership check. A draft or cancelled invoice
+  is refused; a finalized one moves to `Issued`.
 - `POST api/biller/invoicesnapshot/{id}/revoke` sets `RevokedAt`. Ownership is proved
   through the invoice, because the child row has no tenant column.
 - `InvoiceSnapshot` also carries `FirstAccessedAt`, `LastAccessedAt` and `AccessCount`.

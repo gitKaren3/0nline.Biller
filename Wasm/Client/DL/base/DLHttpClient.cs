@@ -80,6 +80,41 @@ namespace _0nline.Biller.Wasm.Client.DL
             }
         }
 
+        /// <summary>POST with no body, for workflow actions such as finalize.</summary>
+        protected async Task<Result<TResponse>> PostAndHandleAsync<TResponse>(string url)
+        {
+            try
+            {
+                var response = await Http.PostAsync(url, null);
+                var result = await response.Content.ReadFromJsonAsync<Result<TResponse>>(JsonOptions);
+                return result ?? Result<TResponse>.Failure(ErrorCode.ValidationFailed, "Deserialization failed");
+            }
+            catch (Exception ex)
+            {
+                return Result<TResponse>.Failure(ErrorCode.ServerError, ex.Message);
+            }
+        }
+
+        /// <summary>Reads a binary response such as a PDF preview.</summary>
+        protected async Task<Result<byte[]>> GetBytesAsync(string url)
+        {
+            try
+            {
+                var response = await Http.GetAsync(url);
+
+                if (!response.IsSuccessStatusCode)
+                    return Result<byte[]>.Failure(
+                        ErrorCode.ServerError,
+                        $"The server returned {(int)response.StatusCode}.");
+
+                return Result<byte[]>.Success(await response.Content.ReadAsByteArrayAsync());
+            }
+            catch (Exception ex)
+            {
+                return Result<byte[]>.Failure(ErrorCode.ServerError, ex.Message);
+            }
+        }
+
         protected async Task<Result<TResponse>> PutAndHandleAsync<TRequest, TResponse>(string url, TRequest data)
         {
             try

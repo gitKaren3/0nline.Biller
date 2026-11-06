@@ -24,6 +24,7 @@ namespace _0nline.Biller.DL.Extensions
             // PDF layouts are app-specific: the shared renderer resolves this one
             // for an InvoicePdfModel. Add one line per document type here.
             services.AddScoped<IPdfDocument<InvoicePdfModel>, InvoicePdfDocument>();
+            services.AddScoped<IInvoicePdfService, InvoicePdfService>();
 
         }
     }
