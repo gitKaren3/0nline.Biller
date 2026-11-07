@@ -1,4 +1,5 @@
 @inject IImageService ImageService
+@inject ICountryCatalog CountryCatalog
 
 
 @* Reusable company form — owns the company fields, the logo lifecycle (optional), *@
@@ -41,12 +42,17 @@
         <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
 
         <MudItem xs="12" md="7" lg="5">
-            <MudTextField Label="Country" Class="mt-3" ShrinkLabel="true"
-                            @bind-Value="Model.AddressCountry" For="@(() => Model.AddressCountry)" />
+            <MudAutocomplete T="string" Label="Country" Class="mt-3" ShrinkLabel="true"
+                             @bind-Value="Model.AddressCountry"
+                             SearchFunc="SearchCountries"
+                             ResetValueOnEmptyText="true"
+                             MaxItems="10"
+                             OpenOnFocus="true" />
         </MudItem>
 
         <MudItem xs="6" md="5" lg="5" Class="mt-3">
             <PhoneNumberField @bind-Value="Model.PhoneNo"
+                DefaultCountryCode="@CountryDialCode"
                 Label="Business Phone"
                 For="@(() => Model.PhoneNo)" />
         </MudItem>
@@ -216,6 +222,33 @@
 
     /// <summary>Runs field validation and reports the verdict.</summary>
     public bool Validate() => EditContext?.Validate() == true;
+
+    /// <summary>
+    /// The dialling code for the selected country, so the phone field opens on the
+    /// right country. Legacy rows may hold a country name rather than an ISO code.
+    /// </summary>
+    private string? CountryDialCode
+        => CountryCatalog.FindByIso(Model.AddressCountry)?.DialCode
+           ?? CountryCatalog.FindByName(Model.AddressCountry)?.DialCode;
+
+    /// <summary>
+    /// Country suggestions. The field stores the display name, matching the existing
+    /// AddressCountry column; ISO codes arrive with the currency/tax columns.
+    /// </summary>
+    private Task<IEnumerable<string>> SearchCountries(string value, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromResult(Enumerable.Empty<string>());
+
+        IEnumerable<CountryInfo> matches = string.IsNullOrWhiteSpace(value)
+            ? CountryCatalog.All
+            : CountryCatalog.All.Where(country =>
+                country.Name.Contains(value, StringComparison.CurrentCultureIgnoreCase) ||
+                country.Iso2.Equals(value, StringComparison.OrdinalIgnoreCase) ||
+                country.DialCode.Contains(value, StringComparison.Ordinal));
+
+        return Task.FromResult(matches.Take(10).Select(country => country.Name));
+    }
 
     protected override void OnParametersSet()
     {

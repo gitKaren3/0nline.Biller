@@ -2,6 +2,8 @@
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Shared.Client.Services;
 using _0nline.Shared.Contract.Client.Interfaces;
+using _0nline.Shared.Location;
+using _0nline.Shared.Location.Interfaces;
 using Blazored.LocalStorage;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,12 +21,18 @@ namespace _0nline.Biller.Test.Base
             Services.AddSingleton(TimeProvider.System);
             Services.AddBlazoredLocalStorage();
             Services.AddSingleton<IPhoneNumberService, PhoneNumberService>();
+            Services.AddSingleton<ICountryCatalog>(CountryCatalog.Default);
             Services.AddSingleton<IImageUploadService<Image>, ImageServiceClient>();
 
             // Stub out common MudBlazor JSInterop calls
             JSInterop.SetupVoid("mudElementRef.addOnBlurEvent", _ => true);
             JSInterop.SetupVoid("mudElementRef.addOnFocusEvent", _ => true);
             JSInterop.SetupVoid("mudElementRef.addOnClickEvent", _ => true);
+            JSInterop.SetupVoid("mudElementRef.removeOnBlurEvent", _ => true);
+            JSInterop.SetupVoid("mudElementRef.removeOnFocusEvent", _ => true);
+
+            JSInterop.SetupVoid("mudPointerEventsNone.listenForPointerEvents", _ => true);
+            JSInterop.SetupVoid("mudPointerEventsNone.cancelListener", _ => true);
 
             JSInterop.SetupVoid("mudPopover.initialize", _ => true);
             JSInterop.SetupVoid("mudPopover.open", _ => true);

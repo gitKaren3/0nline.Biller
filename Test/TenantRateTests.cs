@@ -282,6 +282,8 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
 
     private sealed class FakeCompanyService : ICompanyService
     {
+        public Task<Result<Company[]>> ListClientsAsync()
+            => Task.FromResult(Result<Company[]>.Success(Array.Empty<Company>()));
         private readonly IReadOnlyDictionary<int, string> _values;
 
         public FakeCompanyService(IReadOnlyDictionary<int, string>? values = null)

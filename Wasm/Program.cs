@@ -5,6 +5,8 @@ using _0nline.Shared.Client.UI;
 using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Client.Interfaces;
 using _0nline.Shared.Contract.Client.Models;
+using _0nline.Shared.Location;
+using _0nline.Shared.Location.Interfaces;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Biller.Wasm;
@@ -68,6 +70,11 @@ builder.Services.AddLocalization(options => options.ResourcesPath = "");   // to
 
 #region * Shared Client *
 builder.Services.AddSharedClientServices(builder.Configuration.GetSection("ThemeSettings"));
+
+// The browser resolver is registered by the WASM host, not by AddSharedClientServices:
+// the API host also calls that method, and it needs the server resolver instead.
+builder.Services.Configure<LocationOptions>(builder.Configuration.GetSection(LocationOptions.SectionName));
+builder.Services.AddScoped<ILocationService, BrowserLocationService>();
 #endregion // .......................................................................................
 
 #region * Biller Theme *

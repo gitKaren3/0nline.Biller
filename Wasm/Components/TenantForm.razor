@@ -5,6 +5,8 @@
 @inject ICompanyService CompanyService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserSession UserSession
+@inject IServiceProvider Services
+@inject ICountryCatalog CountryCatalog
 
 @* Orchestrates the two-section tenant form: contact + company. *@
 
@@ -77,6 +79,15 @@ else
             };
             companymodel = new Company();
             tenantmodel = new Tenant { UserId = UserSession.UserId };
+
+            // Pre-fill the business country from the browser's locale or time zone.
+            // It is only a hint and the user can change it. The resolver is optional
+            // here so a host without one (the test harness) still renders the form.
+            if (Services.GetService(typeof(ILocationService)) is ILocationService location
+                && await location.GetCountryAsync(CountryCatalog) is { } country)
+            {
+                companymodel.AddressCountry = country.Name;
+            }
         }
 
         _loading = false;
