@@ -11,6 +11,14 @@ const cacheName = `${cacheNamePrefix}${self.assetsManifest.version}`;
 const offlineAssetsInclude = [ /\.dll$/, /\.pdb$/, /\.wasm/, /\.html/, /\.js$/, /\.json$/, /\.css$/, /\.woff$/, /\.png$/, /\.jpe?g$/, /\.gif$/, /\.ico$/, /\.blat$/, /\.dat$/ ];
 const offlineAssetsExclude = [ /^service-worker\.js$/ ];
 
+// Lazy-loaded assemblies must not be fetched during install, or the service worker
+// would put the ~2.5 MB phone metadata back into the first visit. They are cached the
+// first time the app asks for them instead, so offline use still works afterwards.
+function isLazyAsset(url) {
+    const path = new URL(url, self.location.origin).pathname;
+    return /\/_framework\/(?:PhoneNumbers|0nline\.Shared\.Phone)\.[^/]+\.wasm$/.test(path);
+}
+
 // Replace with your base path if you are hosting on a subfolder. Ensure there is a trailing '/'.
 const base = "/";
 const baseUrl = new URL(base, self.origin);
@@ -23,6 +31,7 @@ async function onInstall(event) {
     const assetsRequests = self.assetsManifest.assets
         .filter(asset => offlineAssetsInclude.some(pattern => pattern.test(asset.url)))
         .filter(asset => !offlineAssetsExclude.some(pattern => pattern.test(asset.url)))
+        .filter(asset => !isLazyAsset(asset.url))
         .map(asset => new Request(asset.url, { integrity: asset.hash, cache: 'no-cache' }));
     await caches.open(cacheName).then(cache => cache.addAll(assetsRequests));
 }
@@ -51,5 +60,16 @@ async function onFetch(event) {
         cachedResponse = await cache.match(request);
     }
 
-    return cachedResponse || fetch(event.request);
+    if (cachedResponse) return cachedResponse;
+
+    const response = await fetch(event.request);
+
+    // Keep a lazy assembly once it has been fetched, so the phone field still works
+    // offline after its first use.
+    if (event.request.method === 'GET' && response.ok && isLazyAsset(event.request.url)) {
+        const cache = await caches.open(cacheName);
+        event.waitUntil(cache.put(event.request, response.clone()));
+    }
+
+    return response;
 }

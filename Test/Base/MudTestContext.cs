@@ -3,6 +3,7 @@ using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Shared.Client.Services;
 using _0nline.Shared.Contract.Client.Interfaces;
 using _0nline.Shared.Location;
+using _0nline.Shared.Phone;
 using _0nline.Shared.Location.Interfaces;
 using Blazored.LocalStorage;
 using Bunit;
@@ -22,6 +23,7 @@ namespace _0nline.Biller.Test.Base
             Services.AddBlazoredLocalStorage();
             Services.AddSingleton<IPhoneNumberService, PhoneNumberService>();
             Services.AddSingleton<ICountryCatalog>(CountryCatalog.Default);
+            Services.AddSingleton(TimeZoneCountryMap.Default);
             Services.AddSingleton<IImageUploadService<Image>, ImageServiceClient>();
 
             // Stub out common MudBlazor JSInterop calls

@@ -18,6 +18,8 @@ using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.AspNetCore.Components.WebAssembly.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 
@@ -75,6 +77,19 @@ builder.Services.AddSharedClientServices(builder.Configuration.GetSection("Theme
 // the API host also calls that method, and it needs the server resolver instead.
 builder.Services.Configure<LocationOptions>(builder.Configuration.GetSection(LocationOptions.SectionName));
 builder.Services.AddScoped<ILocationService, BrowserLocationService>();
+
+// The phone metadata is ~2.9 MB, so it is lazy-loaded (see the csproj) and fetched
+// when the first phone field renders. Shared.Client only knows the interface.
+builder.Services.AddScoped<IPhoneNumberService>(sp => new DeferredPhoneNumberService(async () =>
+{
+    var loader = sp.GetRequiredService<LazyAssemblyLoader>();
+    await loader.LoadAssembliesAsync(new[] { "0nline.Shared.Phone.dll", "PhoneNumbers.dll" });
+
+    var type = Type.GetType(
+        "_0nline.Shared.Phone.PhoneNumberService, 0nline.Shared.Phone", throwOnError: true)!;
+
+    return (IPhoneNumberService)ActivatorUtilities.CreateInstance(sp, type);
+}));
 #endregion // .......................................................................................
 
 #region * Biller Theme *

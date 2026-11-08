@@ -80,17 +80,59 @@ else
             companymodel = new Company();
             tenantmodel = new Tenant { UserId = UserSession.UserId };
 
-            // Pre-fill the business country from the browser's locale or time zone.
-            // It is only a hint and the user can change it. The resolver is optional
-            // here so a host without one (the test harness) still renders the form.
-            if (Services.GetService(typeof(ILocationService)) is ILocationService location
-                && await location.GetCountryAsync(CountryCatalog) is { } country)
+            // Pre-fill the business country from the account preference first: it is
+            // the answer the user already gave at registration, and it travels with
+            // them across devices and apps. Only when it is absent do we fall back to
+            // the host's resolver. Either way it is a hint the user can change - the
+            // company's country remains the fiscal authority, not the user's.
+            if (await GetPreferredCountryAsync() is { } country)
             {
                 companymodel.AddressCountry = country.Name;
             }
         }
 
         _loading = false;
+    }
+
+    /// <summary>
+    /// The country to seed the business address with: the account preference when it
+    /// has one, otherwise the host's best hint. Never throws - onboarding must render
+    /// even when the profile call or the resolver fails.
+    /// </summary>
+    private async Task<CountryInfo?> GetPreferredCountryAsync()
+    {
+        if (UserSession.UserId is long userId
+            && Services.GetService(typeof(IAuthenticationService)) is IAuthenticationService auth)
+        {
+            try
+            {
+                var profile = await auth.GetUserProfileAsync(userId.ToString());
+                if (profile.Successful
+                    && CountryCatalog.FindByIso(profile.Value?.PreferredCountryIso) is { } preferred)
+                {
+                    return preferred;
+                }
+            }
+            catch
+            {
+                // Fall through to the resolver.
+            }
+        }
+
+        // The resolver is optional: a host without one (the test harness) still renders.
+        if (Services.GetService(typeof(ILocationService)) is ILocationService location)
+        {
+            try
+            {
+                return await location.GetCountryAsync(CountryCatalog);
+            }
+            catch
+            {
+                // A hint that cannot be resolved is simply not a hint.
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
