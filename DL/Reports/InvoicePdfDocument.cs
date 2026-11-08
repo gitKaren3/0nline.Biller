@@ -3,6 +3,7 @@ using _0nline.Shared.Services;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using System.Globalization;
 
 namespace _0nline.Biller.DL.Reports
 {
@@ -116,6 +117,12 @@ namespace _0nline.Biller.DL.Reports
                 if (!string.IsNullOrWhiteSpace(party.AddressCountry))
                     column.Item().Text(party.AddressCountry);
 
+                if (!string.IsNullOrWhiteSpace(party.TaxNumber))
+                {
+                    column.Item().Text($"{party.TaxSchemeName ?? "Tax"} No {party.TaxNumber}")
+                        .FontSize(8).FontColor(Muted);
+                }
+
                 if (!string.IsNullOrWhiteSpace(party.Email))
                     column.Item().PaddingTop(2).Text(party.Email).FontColor(Muted);
 
@@ -156,9 +163,9 @@ namespace _0nline.Biller.DL.Reports
                     });
 
                     table.Cell().Element(BodyCell).AlignRight().Text(line.Qty.ToString());
-                    table.Cell().Element(BodyCell).AlignRight().Text(line.UnitPrice.ToString("N2"));
-                    table.Cell().Element(BodyCell).AlignRight().Text(line.Tax.ToString("N2"));
-                    table.Cell().Element(BodyCell).AlignRight().Text(line.Amount.ToString("N2"));
+                    table.Cell().Element(BodyCell).AlignRight().Text(Money(line.UnitPrice, model));
+                    table.Cell().Element(BodyCell).AlignRight().Text(Money(line.Tax, model));
+                    table.Cell().Element(BodyCell).AlignRight().Text(Money(line.Amount, model));
                 }
             });
         }
@@ -169,14 +176,15 @@ namespace _0nline.Biller.DL.Reports
             {
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem().Text("Tax").FontColor(Muted);
-                    row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(model.TotalTax.ToString("N2"));
+                    row.RelativeItem().Text(model.TaxSchemeName is { } scheme ? $"Tax ({scheme})" : "Tax")
+                        .FontColor(Muted);
+                    row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(Money(model.TotalTax, model));
                 });
 
                 column.Item().PaddingTop(4).BorderTop(1).BorderColor(Rule).PaddingTop(6).Row(row =>
                 {
                     row.RelativeItem().Text("Total").SemiBold().FontSize(11);
-                    row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(model.Total.ToString("N2"))
+                    row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(Money(model.Total, model))
                         .SemiBold().FontSize(11);
                 });
             });
@@ -249,6 +257,17 @@ namespace _0nline.Biller.DL.Reports
         {
             var value = string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
             return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        /// <summary>
+        /// Money as the invoice stored it. The symbol and the number of decimal places
+        /// are frozen in the model, so this is independent of the server's culture and
+        /// of later changes to the currency catalogue.
+        /// </summary>
+        private static string Money(decimal value, InvoicePdfModel model)
+        {
+            int decimals = Math.Clamp(model.CurrencyMinorUnits, 0, 4);
+            return $"{model.CurrencySymbol} {value.ToString("N" + decimals, CultureInfo.InvariantCulture)}";
         }
     }
 }

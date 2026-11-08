@@ -27,7 +27,7 @@
             else if (_editing)
             {
 
-                <CompanyForm @ref="_form" Model="_model" ShowLogo="false" ShowBillingContact="true" />
+                <CompanyForm @ref="_form" Model="_model" ShowLogo="false" ShowBillingContact="true" ShowTaxSettings="false" />
 
                 <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
                     <MudButton OnClick="CancelEdit" Disabled="_saving">Cancel</MudButton>
@@ -291,6 +291,9 @@
         AddressCity = client.AddressCity,
         AddressCode = client.AddressCode,
         AddressCountry = client.AddressCountry,
+        CountryCode = client.CountryCode,
+        TaxNumber = client.TaxNumber,
+        TaxSchemeID = client.TaxSchemeID,
         Phone = client.Phone,
         BillingContactID = client.BillingContactID,
         Active = client.Active,

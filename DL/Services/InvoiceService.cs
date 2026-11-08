@@ -8,8 +8,10 @@ using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Interfaces;
+using _0nline.Shared.Location;
 using Dapper;
 using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus;
+using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme;
 
 namespace _0nline.Biller.DL.Services
 {
@@ -22,17 +24,20 @@ namespace _0nline.Biller.DL.Services
     {
         private readonly IInvoiceLineService _invoiceLineService;
         private readonly IInvoicePdfService _pdfService;
+        private readonly ITenantSettingService _tenantSettings;
 
         public InvoiceService(
             IDbContextProvider<BillerDbConfig> ctx,
             ISqlQueryProvider<Invoice> queryService,
             ITenantContext tenancyContext,
             IInvoiceLineService invoiceLineService,
-            IInvoicePdfService pdfService)
+            IInvoicePdfService pdfService,
+            ITenantSettingService tenantSettings)
             : base(ctx, queryService, tenancyContext)
         {
             _invoiceLineService = invoiceLineService;
             _pdfService = pdfService;
+            _tenantSettings = tenantSettings;
         }
 
         public new Task<Result<Invoice[]>> GetAllAsync() => base.GetAllAsync();
@@ -103,11 +108,14 @@ namespace _0nline.Biller.DL.Services
             ArgumentNullException.ThrowIfNull(invoice);
 
             invoice.ID = 0;
-            invoice.InvoiceDate ??= DateTime.Today;
             invoice.InvoiceStatusID = invoice.InvoiceStatusID == 0
                 ? (short)InvoiceStatusKind.Draft
                 : invoice.InvoiceStatusID;
             invoice.CompanyID = invoice.CompanyID is > 0 ? invoice.CompanyID : null;
+
+            var defaults = await ResolveDefaultsAsync(invoice);
+            if (defaults.Error is not null)
+                return Result<Invoice>.Failure(ErrorCode.ValidationFailed, defaults.Error);
 
             var autoNumber = string.IsNullOrWhiteSpace(invoice.InvoiceNumber);
             if (autoNumber)
@@ -115,11 +123,11 @@ namespace _0nline.Biller.DL.Services
             else
                 invoice.InvoiceNumber = invoice.InvoiceNumber!.Trim();
 
-            var validationError = await ValidateAsync(invoice);
+            var validationError = await ValidateAsync(invoice, defaults.Value);
             if (validationError is not null)
                 return Result<Invoice>.Failure(ErrorCode.ValidationFailed, validationError);
 
-            var lines = CleanLines(invoice);
+            var lines = PrepareLines(invoice, defaults.Value);
             var invoiceProperties = GetCachedProperties<Invoice>();
             var lineProperties = GetCachedProperties<InvoiceLine>();
 
@@ -176,18 +184,22 @@ namespace _0nline.Biller.DL.Services
                 return Result<Invoice>.Failure(
                     ErrorCode.Conflict, "This invoice has been finalized and can no longer be edited.");
 
-            invoice.InvoiceDate ??= current.InvoiceDate ?? DateTime.Today;
+            invoice.InvoiceDate ??= current.InvoiceDate;
             invoice.InvoiceStatusID = (short)InvoiceStatusKind.Draft;
             invoice.CompanyID = invoice.CompanyID is > 0 ? invoice.CompanyID : null;
             invoice.InvoiceNumber = string.IsNullOrWhiteSpace(invoice.InvoiceNumber)
                 ? current.InvoiceNumber
                 : invoice.InvoiceNumber!.Trim();
 
-            var validationError = await ValidateAsync(invoice);
+            var defaults = await ResolveDefaultsAsync(invoice, current);
+            if (defaults.Error is not null)
+                return Result<Invoice>.Failure(ErrorCode.ValidationFailed, defaults.Error);
+
+            var validationError = await ValidateAsync(invoice, defaults.Value);
             if (validationError is not null)
                 return Result<Invoice>.Failure(ErrorCode.ValidationFailed, validationError);
 
-            var lines = CleanLines(invoice);
+            var lines = PrepareLines(invoice, defaults.Value);
             var existing = current.InvoiceLines.ToDictionary(line => line.ID);
 
             if (lines.Any(line => line.ID > 0 && !existing.ContainsKey(line.ID)))
@@ -258,7 +270,59 @@ namespace _0nline.Biller.DL.Services
             return invoice!;
         }
 
-        private async Task<string?> ValidateAsync(Invoice invoice)
+        private async Task<(InvoiceDefaults Value, string? Error)> ResolveDefaultsAsync(
+            Invoice invoice, Invoice? current = null)
+        {
+            var settings = await _tenantSettings.GetForTenantAsync();
+            if (!settings.Successful || settings.Value is not TenantSetting tenantSetting)
+            {
+                return (default, settings.Errors.FirstOrDefault()
+                    ?? "Complete your billing settings before creating an invoice.");
+            }
+
+            var currency = CurrencyCatalog.Default.Get(
+                invoice.CurrencyCode ?? current?.CurrencyCode ?? tenantSetting.CurrencyCode);
+
+            invoice.CurrencyCode = currency.Code;
+            invoice.CurrencyMinorUnits = (short)currency.MinorUnits;
+
+            if (invoice.InvoiceDate is null)
+                invoice.InvoiceDate = TodayIn(tenantSetting.TimeZoneId);
+
+            using var conn = Connection;
+            var tenantId = RequireTenantId();
+
+            // The issuer is the tenant's own company. A null scheme means it has not
+            // registered for tax, which is a business fact, not an error.
+            short? issuerScheme = await conn.ExecuteScalarAsync<short?>(
+                @"SELECT c.""TaxSchemeID""
+                    FROM ""Tenant"" t
+                    LEFT JOIN ""Company"" c ON c.""ID"" = t.""CompanyID""
+                   WHERE t.""ID"" = @TenantId",
+                new { TenantId = tenantId });
+
+            return (new InvoiceDefaults(issuerScheme, tenantSetting.DefaultTaxRate ?? 0m), null);
+        }
+
+        private static DateTime TodayIn(string? timeZoneId)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(timeZoneId)
+                    && TimeZoneInfo.TryFindSystemTimeZoneById(timeZoneId.Trim(), out var zone))
+                {
+                    return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Date;
+                }
+            }
+            catch
+            {
+                // An unusable zone falls back to UTC rather than blocking the invoice.
+            }
+
+            return DateTime.UtcNow.Date;
+        }
+
+        private async Task<string?> ValidateAsync(Invoice invoice, InvoiceDefaults defaults)
         {
             if (invoice.IssuedToContactID <= 0)
                 return "Choose a contact to invoice.";
@@ -274,6 +338,9 @@ namespace _0nline.Biller.DL.Services
 
             if (invoice.PaymentRef?.Length > 250)
                 return "The payment reference may not exceed 250 characters.";
+
+            if (invoice.CurrencyCode is null || invoice.CurrencyCode.Length != 3)
+                return "Choose a currency for the invoice.";
 
             var lines = invoice.InvoiceLines ?? new List<InvoiceLine>();
             foreach (var line in lines)
@@ -293,8 +360,28 @@ namespace _0nline.Biller.DL.Services
                 if (line.BilledRateIncl is null or < 0)
                     return "A billed rate may not be negative.";
 
-                if (line.TotalTax is null or < 0)
+                if (line.TotalTax is < 0)
                     return "Tax may not be negative.";
+
+                if (line.TaxSchemeID is short schemeId && !Enum.IsDefined((TaxSchemeKind)schemeId))
+                    return "A line names an unknown tax scheme.";
+
+                if (line.TaxRate is < 0 or > 100)
+                    return "A tax rate must be between 0 and 100.";
+
+                if (line.TaxNote?.Length > 250)
+                    return "A tax note may not exceed 250 characters.";
+            }
+
+            // A business that is not registered may not charge tax. Reject the write
+            // rather than silently zeroing a rate the caller thought it had set.
+            if (defaults.IssuerTaxSchemeID is null
+                && lines.Any(line =>
+                    line.TaxSchemeID is not null
+                    || (line.TaxRate ?? 0m) != 0m
+                    || (line.TotalTax ?? 0m) != 0m))
+            {
+                return "The business is not registered for tax, so no tax can be charged.";
             }
 
             using var conn = Connection;
@@ -333,25 +420,50 @@ namespace _0nline.Biller.DL.Services
         }
 
         /// <summary>
-        /// Copies only the columns a line owns. Navigation graphs from the client
-        /// are never persisted: a line must not be able to update its rate row.
+        /// Copies only the columns a line owns and fills in the tax defaults. The
+        /// rate actually used is stored on the line, never re-derived at render time.
         /// </summary>
-        private static List<InvoiceLine> CleanLines(Invoice invoice)
+        private static List<InvoiceLine> PrepareLines(Invoice invoice, InvoiceDefaults defaults)
         {
             var lines = invoice.InvoiceLines ?? new List<InvoiceLine>();
+            int minorUnits = invoice.CurrencyMinorUnits ?? 2;
 
-            return lines.Select(line => new InvoiceLine
+            return lines.Select(line =>
             {
-                ID = line.ID,
-                InvoiceID = invoice.ID,
-                ContractID = line.ContractID,
-                Description = line.Description?.Trim(),
-                Qty = line.Qty,
-                TenantRateID = line.TenantRateID,
-                TotalTax = line.TotalTax,
-                BilledRateIncl = line.BilledRateIncl
+                short? scheme = defaults.IssuerTaxSchemeID;
+                decimal rate = defaults.DefaultTaxRate;
+
+                if (scheme is null)
+                {
+                    rate = 0m;
+                }
+                else
+                {
+                    scheme = line.TaxSchemeID ?? scheme;
+                    rate = line.TaxRate ?? rate;
+                }
+
+                decimal gross = (line.BilledRateIncl ?? 0m) * (line.Qty ?? 0);
+                decimal tax = TaxMath.TaxFromInclusive(gross, rate, minorUnits);
+
+                return new InvoiceLine
+                {
+                    ID = line.ID,
+                    InvoiceID = invoice.ID,
+                    ContractID = line.ContractID,
+                    Description = line.Description?.Trim(),
+                    Qty = line.Qty,
+                    TenantRateID = line.TenantRateID,
+                    BilledRateIncl = line.BilledRateIncl,
+                    TaxSchemeID = scheme,
+                    TaxRate = rate,
+                    TaxNote = string.IsNullOrWhiteSpace(line.TaxNote) ? null : line.TaxNote.Trim(),
+                    TotalTax = tax
+                };
             }).ToList();
         }
+
+        private readonly record struct InvoiceDefaults(short? IssuerTaxSchemeID, decimal DefaultTaxRate);
 
         private static void ClearNavigation(Invoice invoice)
         {

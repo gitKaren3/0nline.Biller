@@ -11,7 +11,7 @@ namespace _0nline.Biller.DL.Providers
             : base(new DbTableDescriptor("Invoice")
             {
                 KeyColumns = new[] { "ID" },
-                EditableColumns = new[] { "TenantID", "InvoiceNumber", "IssuedToContactID", "CompanyID", "InvoiceDate", "PaymentRef", "InvoiceStatusID" },
+                EditableColumns = new[] { "TenantID", "InvoiceNumber", "IssuedToContactID", "CompanyID", "InvoiceDate", "PaymentRef", "InvoiceStatusID", "CurrencyCode", "CurrencyMinorUnits" },
                 ActiveColumn = null,
                 LookupLabel = new LookupLabel(new[] { "InvoiceNumber" }, " "),
                 LookupFilter = null

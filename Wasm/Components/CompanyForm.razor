@@ -1,5 +1,7 @@
 @inject IImageService ImageService
 @inject ICountryCatalog CountryCatalog
+@using _0nline.Biller.DL.Contract.Enums
+@using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme
 
 
 @* Reusable company form — owns the company fields, the logo lifecycle (optional), *@
@@ -22,6 +24,38 @@
                             @bind-Value="Model.Registration" For="@(() => Model.Registration)" />
         </MudItem>
 
+        @if (ShowTaxSettings)
+        {
+            <MudItem sm="12" md="4" lg="3" Class="mt-3 d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="Model.TaxRegistered"
+                           Label="Registered for tax" Color="Color.Primary" />
+            </MudItem>
+
+            @if (Model.TaxRegistered)
+            {
+                <MudItem xs="12" sm="5" md="3" lg="2"  Class="mt-3">
+                    <MudSelect T="TaxSchemeKind?" Label="Tax scheme" Class="mt-3" ShrinkLabel="true"
+                               @bind-Value="Model.TaxSchemeSelection"
+                               For="@(() => Model.TaxSchemeSelection)">
+                        @foreach (var scheme in Enum.GetValues<TaxSchemeKind>())
+                        {
+                            <MudSelectItem T="TaxSchemeKind?" Value="@scheme">@SchemeLabel(scheme)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" sm="7" md="5" lg="5" Class="mt-3">
+                    <MudTextField Label="Tax / VAT Number" Class="mt-3" ShrinkLabel="true"
+                                  @bind-Value="Model.TaxNumber" For="@(() => Model.TaxNumber)"
+                                  HelperText="The number printed on invoices." />
+                </MudItem>
+            }
+            else
+            {
+                <MudItem md="9" style="padding:0px"> @* End of Row filler *@ </MudItem>
+            }
+        }
+
         <MudItem xs="12" md="8">
             <MudTextField Label="Address" Class="mt-3" Lines="3" ShrinkLabel="true"
                             @bind-Value="Model.Address" For="@(() => Model.Address)" />
@@ -42,12 +76,9 @@
         <MudItem xs="0" md="4" style="padding:0px"> @* Row filler *@ </MudItem>
 
         <MudItem xs="12" md="7" lg="5">
-            <MudAutocomplete T="string" Label="Country" Class="mt-3" ShrinkLabel="true"
-                             @bind-Value="Model.AddressCountry"
-                             SearchFunc="SearchCountries"
-                             ResetValueOnEmptyText="true"
-                             MaxItems="10"
-                             OpenOnFocus="true" />
+            <CountryField Label="Country" Class="mt-3" 
+                          @bind-CountryIso="Model.CountryCode"
+                          @bind-CountryNameValue="Model.AddressCountry" />
         </MudItem>
 
         <MudItem xs="6" md="5" lg="5" Class="mt-3">
@@ -109,6 +140,13 @@
 
     /// <summary>Whether to render the billing contact capture.</summary>
     [Parameter] public bool ShowBillingContact { get; set; } = false;
+
+    /// <summary>
+    /// Whether to render the tax-registration switch and its fields. The tenant's own
+    /// business uses them; a client form does not, because a client's tax identity is
+    /// captured elsewhere when it is needed for a reversed-charge invoice.
+    /// </summary>
+    [Parameter] public bool ShowTaxSettings { get; set; } = true;
 
     private EditForm? _form;
     private ImageUpload<Image>? _logoUpload;
@@ -228,27 +266,16 @@
     /// right country. Legacy rows may hold a country name rather than an ISO code.
     /// </summary>
     private string? CountryDialCode
-        => CountryCatalog.FindByIso(Model.AddressCountry)?.DialCode
+        => CountryCatalog.FindByIso(Model.CountryCode)?.DialCode
            ?? CountryCatalog.FindByName(Model.AddressCountry)?.DialCode;
 
-    /// <summary>
-    /// Country suggestions. The field stores the display name, matching the existing
-    /// AddressCountry column; ISO codes arrive with the currency/tax columns.
-    /// </summary>
-    private Task<IEnumerable<string>> SearchCountries(string value, CancellationToken cancellationToken)
+    private static string SchemeLabel(TaxSchemeKind scheme) => scheme switch
     {
-        if (cancellationToken.IsCancellationRequested)
-            return Task.FromResult(Enumerable.Empty<string>());
-
-        IEnumerable<CountryInfo> matches = string.IsNullOrWhiteSpace(value)
-            ? CountryCatalog.All
-            : CountryCatalog.All.Where(country =>
-                country.Name.Contains(value, StringComparison.CurrentCultureIgnoreCase) ||
-                country.Iso2.Equals(value, StringComparison.OrdinalIgnoreCase) ||
-                country.DialCode.Contains(value, StringComparison.Ordinal));
-
-        return Task.FromResult(matches.Take(10).Select(country => country.Name));
-    }
+        TaxSchemeKind.Vat => "VAT",
+        TaxSchemeKind.Gst => "GST",
+        TaxSchemeKind.SalesTax => "Sales Tax",
+        _ => "Other"
+    };
 
     protected override void OnParametersSet()
     {

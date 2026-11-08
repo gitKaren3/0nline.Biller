@@ -23,6 +23,7 @@ namespace _0nline.Biller.Test.Base
             Services.AddBlazoredLocalStorage();
             Services.AddSingleton<IPhoneNumberService, PhoneNumberService>();
             Services.AddSingleton<ICountryCatalog>(CountryCatalog.Default);
+            Services.AddSingleton<ICurrencyCatalog>(CurrencyCatalog.Default);
             Services.AddSingleton(TimeZoneCountryMap.Default);
             Services.AddSingleton<IImageUploadService<Image>, ImageServiceClient>();
 

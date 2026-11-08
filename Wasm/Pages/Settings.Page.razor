@@ -1,0 +1,16 @@
+﻿@page "/settings"
+@using _0nline.Biller.Wasm.Components
+
+<PageTitle>e-Biller | Settings</PageTitle>
+
+<AuthorizeView>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+<MudText Typo="Typo.h3" Class="py-3 mb-1">Settings</MudText>
+
+<MudPaper Class="py-3 px-3">
+    <TenantSettingForm />
+</MudPaper>

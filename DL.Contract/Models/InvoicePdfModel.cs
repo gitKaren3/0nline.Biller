@@ -16,7 +16,7 @@ namespace _0nline.Biller.DL.Contract.Models
         /// The shape of this model. Stored beside the snapshot so a future renderer
         /// can tell which contract the JSON was written under.
         /// </summary>
-        public const short CurrentLayoutVersion = 1;
+        public const short CurrentLayoutVersion = 2;
 
         public string InvoiceNumber { get; init; } = string.Empty;
 
@@ -25,6 +25,18 @@ namespace _0nline.Biller.DL.Contract.Models
         public string? PaymentRef { get; init; }
 
         public string? StatusName { get; init; }
+
+        /// <summary>ISO 4217 code frozen when the invoice was issued.</summary>
+        public string CurrencyCode { get; init; } = "ZAR";
+
+        /// <summary>Symbol frozen with the code, so a catalogue change cannot alter an old PDF.</summary>
+        public string CurrencySymbol { get; init; } = "R";
+
+        /// <summary>Decimal places used for money on this invoice.</summary>
+        public int CurrencyMinorUnits { get; init; } = 2;
+
+        /// <summary>The issuer's tax scheme name (VAT, GST, …), when registered.</summary>
+        public string? TaxSchemeName { get; init; }
 
         public InvoicePdfParty Issuer { get; init; } = new();
 

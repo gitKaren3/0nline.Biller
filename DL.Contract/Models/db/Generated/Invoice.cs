@@ -46,6 +46,15 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [Required(ErrorMessage = "Required")]
         public short InvoiceStatusID { get; set; } = 0;
 
+        [Editable(true)]
+        [Required(ErrorMessage = "Required")]
+        [StringLength(3, ErrorMessage = "Max 3 characters")]
+        public string? CurrencyCode { get; set; }
+
+        [Editable(true)]
+        [Required(ErrorMessage = "Required")]
+        public short? CurrencyMinorUnits { get; set; }
+
         // Navigation properties
         public Tenant? Tenant { get; set; }
         public Contact? IssuedToContact { get; set; }

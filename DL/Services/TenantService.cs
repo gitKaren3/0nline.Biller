@@ -21,6 +21,7 @@ namespace _0nline.Biller.DL.Services
         private ITierService _tierService { get; }
         private IFileStoreService _fileStoreService { get; }
         private IImageService _imageService { get; }
+        private ITenantSettingService _tenantSettings { get; }
 
         public TenantService(IDbContextProvider<BillerDbConfig> ctx
                             , ISqlQueryProvider<Tenant> queryService
@@ -28,13 +29,15 @@ namespace _0nline.Biller.DL.Services
                             , IAuthenticationService authService
                             , ITenantContext tenancyContext
                             , IImageService imageService
-                            , IFileStoreService fileStoreService)
+                            , IFileStoreService fileStoreService
+                            , ITenantSettingService tenantSettings)
             : base(ctx, queryService, tenancyContext)
         {
             _authService = authService;
             _tierService = tierService;
             _fileStoreService = fileStoreService;
             _imageService = imageService;
+            _tenantSettings = tenantSettings;
         }
 
         public new Task<Result<Tenant>> CreateAsync(Tenant entity) => CreateTenantAsync(entity);
@@ -204,6 +207,18 @@ namespace _0nline.Biller.DL.Services
             else
             {
                 return Result<TenantRegistrationResult>.Failure(existing.ErrorCode, existing.Errors);
+            }
+
+            // Settings must exist before the profile form can save an invoice default.
+            // Best-effort: a failure here must not strand first login, and the read
+            // path creates the row again when the user opens Settings.
+            try
+            {
+                await _tenantSettings.EnsureForTenantAsync(tenant.ID, userId);
+            }
+            catch
+            {
+                // The settings page repairs a missing row with EnsureForTenantAsync.
             }
 
             // The subscription is what puts the tenantId claim into the next token.

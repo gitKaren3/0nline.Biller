@@ -133,6 +133,12 @@ builder.Services.Configure<DLClientOptions>(builder.Configuration.GetSection("DL
 builder.Services.AddHttpClient<ITenantService,TenantServiceClient>()
     .AddHttpMessageHandler<AuthMessageHandler>();
 
+builder.Services.AddHttpClient<ITenantSettingService, TenantSettingServiceClient>()
+    .AddHttpMessageHandler<AuthMessageHandler>()
+    .AddHttpMessageHandler<TenantMessageHandler>();
+
+builder.Services.AddScoped<_0nline.Biller.Wasm.Client.State.TenantSettingState>();
+
 builder.Services.AddHttpClient<ITierService, TierServiceClient>()
     .AddHttpMessageHandler<AuthMessageHandler>();
 

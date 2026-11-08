@@ -84,6 +84,46 @@ public class CompanyFormTests : Base.MudTestContext, IAsyncLifetime
         Assert.Equal(new[] { 7 }, _images.Removed);
     }
 
+    [Fact]
+    public void TaxRegistrationIsShownByDefaultAndCanBeHiddenForClients()
+    {
+        var company = new Company
+        {
+            ID = 5,
+            Name = "Acme",
+            Address = "1 Main Road",
+            AddressCity = "Cape Town"
+        };
+
+        var shown = Render<CompanyForm>(p => p.Add(c => c.Model, company));
+        Assert.Contains("Registered for tax", shown.Markup);
+
+        var hidden = Render<CompanyForm>(p => p
+            .Add(c => c.Model, company)
+            .Add(c => c.ShowTaxSettings, false));
+        Assert.DoesNotContain("Registered for tax", hidden.Markup);
+    }
+
+    [Fact]
+    public void TaxFieldsAppearOnlyAfterTheSwitchIsTurnedOn()
+    {
+        var company = new Company
+        {
+            ID = 5,
+            Name = "Acme",
+            Address = "1 Main Road",
+            AddressCity = "Cape Town"
+        };
+
+        var cut = Render<CompanyForm>(p => p.Add(c => c.Model, company));
+
+        Assert.DoesNotContain("Tax / VAT Number", cut.Markup);
+
+        cut.Find("input[type=checkbox]").Change(true);
+
+        cut.WaitForAssertion(() => Assert.Contains("Tax / VAT Number", cut.Markup));
+    }
+
     private sealed class RecordingImageService : IImageService
     {
         public List<int> Deactivated { get; } = new();

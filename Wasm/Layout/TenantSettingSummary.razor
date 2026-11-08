@@ -1,0 +1,88 @@
+@using _0nline.Biller.DL.Contract.Models.db
+@using _0nline.Biller.Wasm.Client.State
+@using _0nline.Shared.Location
+@inject ITenantSettingService TenantSettingService
+@inject TenantSettingState SettingsState
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserSession UserSession
+@inject NavigationManager Nav
+
+@* A compact reminder of the tenant's billing defaults, next to the gear. The
+   detailed edit lives on /settings; this is deliberately read-only. *@
+
+@if (_settings is not null)
+{
+    <MudTooltip Text="@Tooltip">
+        <MudButton Variant="Variant.Text" Color="Color.Inherit"
+                   EndIcon="@Icons.Material.Filled.Settings"
+                   OnClick="OpenSettings"
+                   Class="appbar-settings-summary mr-2">
+            @Summary
+        </MudButton>
+    </MudTooltip>
+}
+
+@code {
+    private TenantSetting? _settings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        SettingsState.Changed += HandleChanged;
+
+        if (SettingsState.Current is not null)
+        {
+            _settings = SettingsState.Current;
+            return;
+        }
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true || UserSession.TenantId <= 0)
+            return;
+
+        var result = await TenantSettingService.GetForTenantAsync();
+        if (result.Successful && result.Value is TenantSetting loaded)
+        {
+            _settings = loaded;
+            SettingsState.Set(loaded);
+        }
+    }
+
+    public void Dispose() => SettingsState.Changed -= HandleChanged;
+
+    private void HandleChanged()
+    {
+        _settings = SettingsState.Current;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenSettings() => Nav.NavigateTo("/settings");
+
+    private string Summary
+    {
+        get
+        {
+            if (_settings is null) return string.Empty;
+
+            string currency = _settings.CurrencyCode ?? "—";
+            string tax = _settings.DefaultTaxRate is > 0
+                ? $"{_settings.DefaultTaxRate:0.##}%"
+                : "No tax";
+
+            return $"{currency} · {tax}";
+        }
+    }
+
+    private string Tooltip
+    {
+        get
+        {
+            if (_settings is null) return "Billing settings";
+
+            string zone = string.IsNullOrWhiteSpace(_settings.TimeZoneId)
+                ? "No time zone"
+                : TimeZoneDisplay.Label(_settings.TimeZoneId);
+
+            return $"Billing settings · {zone}";
+        }
+    }
+}

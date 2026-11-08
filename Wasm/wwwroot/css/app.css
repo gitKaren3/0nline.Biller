@@ -291,3 +291,11 @@ footer {
 .mud-main-content .biller-footer {
     flex-shrink: 0;
 }
+
+/* The billing summary is useful, but it crowds the app bar on a phone. The gear
+   remains, and the full form is one tap away in the nav and account menu. */
+@media (max-width: 640px) {
+    .appbar-settings-summary {
+        display: none !important;
+    }
+}

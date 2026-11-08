@@ -45,8 +45,21 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [Required(ErrorMessage = "Required")]
         public decimal? BilledRateIncl { get; set; }
 
+        [Editable(true)]
+        [ForeignKey("TaxScheme")]
+        public short? TaxSchemeID { get; set; }
+
+        [Editable(true)]
+        [Required(ErrorMessage = "Required")]
+        public decimal? TaxRate { get; set; }
+
+        [Editable(true)]
+        [StringLength(250, ErrorMessage = "Max 250 characters")]
+        public string? TaxNote { get; set; }
+
         // Navigation properties
         public Invoice? Invoice { get; set; }
         public TenantRate? TenantRate { get; set; }
+        public TaxScheme? TaxScheme { get; set; }
     }
 }

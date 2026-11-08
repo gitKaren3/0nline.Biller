@@ -79,9 +79,33 @@ and can be turned into a blob URL in the browser.
 
 ## Tax and currency
 
-Still open. `InvoiceLine.TotalTax` is stored per line and must be supplied by the UI;
-there is no tenant VAT rate or currency in the schema. The PDF prints `N2` with no
-symbol. Decide these before invoices are considered correct.
+`TenantSetting` holds the tenant's billing defaults: `CurrencyCode`,
+`CurrencyMinorUnits`, `TimeZoneId` and `DefaultTaxRate`. There is one row per
+tenant (`TenantID` is unique) and it is created by the first-login ensure step.
+
+- **Currency is per invoice.** `InvoiceService` copies the settings currency onto
+  the invoice at create time; changing the setting later does not reinterpret
+  existing invoices. The invoice stores the code and minor units.
+- **Tax is gated by the issuer's company.** A business with
+  `Company.TaxSchemeID IS NULL` is not tax-registered and may not charge tax.
+  When it is set, lines default to that scheme and to `DefaultTaxRate`.
+- **Tax is inclusive.** `InvoiceLine.BilledRateIncl` already contains the tax.
+  The service extracts it from the gross at `TaxRate` (rounded to the
+  currency's minor units) and stores the result in `TotalTax`. The rate, scheme
+  and optional note are stored on the line, so a later settings change cannot
+  alter an issued invoice.
+- **The snapshot freezes all of it.** `InvoicePdfModel` layout version 2 carries
+  the currency code, symbol, minor units, the tax scheme name and the seller's
+  tax number. The PDF prints the symbol and the tax breakdown; it never reads
+  settings at render time.
+- **The invoice date is a calendar date.** `Invoice.InvoiceDate` is a `date`,
+  and the tenant's time zone decides which date "today" is. Stored instants
+  elsewhere remain UTC.
+
+One default rate is not a tax engine: reverse charge, exports, exemptions and
+customer-country rules are deliberately out of scope for now. The per-line
+scheme and rate are stored so those rules can be added without rewriting
+historical lines.
 
 ## Clients the UI uses
 

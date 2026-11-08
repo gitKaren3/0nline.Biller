@@ -45,10 +45,12 @@
                            Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
             <ProductLockup Product="e-Biller" ShowWordmark="true" OnAccent="true" Class="appbar-lockup" />
             <MudSpacer />
-
+            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+            <TenantSettingSummary />
+            
             <DarkModeToggle DarkModeChanged="OnDarkModeChanged" />
 
-            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+            
             <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit">
                 <MudMenuItem Href="/profile">My Profile</MudMenuItem>
                 <MudMenuItem Href="/settings">Settings</MudMenuItem>

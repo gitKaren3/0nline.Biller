@@ -8,7 +8,8 @@ namespace _0nline.Biller.DL.Contract.Enums
         Draft = 1,
         Finalized = 2,
         Issued = 3,
-        Paid = 4,
-        Cancelled = 5
+        Viewed = 4,
+        Paid = 5,
+        Cancelled = 6
     }
 }

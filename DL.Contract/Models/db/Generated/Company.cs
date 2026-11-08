@@ -62,9 +62,22 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [Editable(true)]
         public bool? Active { get; set; }
 
+        [Editable(true)]
+        [StringLength(2, ErrorMessage = "Max 2 characters")]
+        public string? CountryCode { get; set; }
+
+        [Editable(true)]
+        [StringLength(50, ErrorMessage = "Max 50 characters")]
+        public string? TaxNumber { get; set; }
+
+        [Editable(true)]
+        [ForeignKey("TaxScheme")]
+        public short? TaxSchemeID { get; set; }
+
         // Navigation properties
         public Tenant? Tenant { get; set; }
         public Contact? BillingContact { get; set; }
         public Image? LogoImage { get; set; }
+        public TaxScheme? TaxScheme { get; set; }
     }
 }

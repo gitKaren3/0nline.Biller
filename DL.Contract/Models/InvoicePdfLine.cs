@@ -15,6 +15,15 @@ namespace _0nline.Biller.DL.Contract.Models
         /// <summary>Tax already contained in <see cref="UnitPrice"/> for this line.</summary>
         public decimal Tax { get; init; }
 
+        /// <summary>The rate the tax was calculated at, frozen with the line.</summary>
+        public decimal TaxRate { get; init; }
+
+        /// <summary>The scheme name for this line (VAT, GST, …).</summary>
+        public string? TaxSchemeName { get; init; }
+
+        /// <summary>An optional explanation for a zero-rated or exempt line.</summary>
+        public string? TaxNote { get; init; }
+
         public decimal Amount => Qty * UnitPrice;
     }
 }

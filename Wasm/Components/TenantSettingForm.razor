@@ -1,0 +1,154 @@
+@using _0nline.Biller.DL.Contract.Models.db
+@using _0nline.Shared.Location
+@using _0nline.Shared.Location.Interfaces
+@using _0nline.Shared.Location.Models
+@inject ITenantSettingService TenantSettingService
+@inject ICurrencyCatalog Currencies
+@inject TimeZoneCountryMap TimeZones
+@inject ISnackbar Snackbar
+@inject _0nline.Biller.Wasm.Client.State.TenantSettingState SettingsState
+
+@* The tenant's billing defaults. Currency, time zone and the default tax rate are
+   the values a new invoice starts from; the rate actually used is copied onto the
+   invoice line and frozen in the snapshot. *@
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-8 d-block mx-auto" />
+}
+else if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="my-6" Variant="Variant.Outlined">@_loadError</MudAlert>
+}
+else
+{
+    var model = Model!;
+
+    <EditForm Model="@model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudSelect T="string" Label="Currency" Class="mt-3" ShrinkLabel="true"
+                           Value="@model.CurrencyCode" ValueChanged="OnCurrencyChanged"
+                           For="@(() => model.CurrencyCode)">
+                    @foreach (var currency in Currencies.All)
+                    {
+                        <MudSelectItem T="string" Value="@currency.Code">
+                            @($"{currency.Symbol}  {currency.Code} — {currency.Name}")
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudNumericField T="decimal?" Label="Default tax rate (%)" Class="mt-3" ShrinkLabel="true"
+                                 @bind-Value="model.DefaultTaxRate" For="@(() => model.DefaultTaxRate)"
+                                 Min="0" Max="100" Step="0.01m"
+                                 HelperText="Used for new invoice lines; each line may override it." />
+            </MudItem>
+
+            <MudItem xs="12" md="9">
+                <ZoneField @bind-CountryIso="_zoneCountryIso"
+                           @bind-TimeZoneId="model.TimeZoneId"
+                           CountryLabel="Country"
+                           CountryHelperText="Used to narrow the time zone list; the business address is on My Profile."
+                           TimeZoneLabel="Business time zone"
+                           TimeZoneHelperText="Dates on invoices use this zone; stored values remain UTC." />
+                <ValidationMessage For="@(() => model.TimeZoneId)" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Class="mt-2">
+                    Currency is copied onto each new invoice, so changing it here does not
+                    reinterpret invoices already issued.
+                </MudText>
+            </MudItem>
+        </MudGrid>
+
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit"
+                       Disabled="_saving">
+                @if (_saving)
+                {
+                    <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                    <MudText>Busy</MudText>
+                }
+                else
+                {
+                    <MudText>Save</MudText>
+                }
+            </MudButton>
+        </MudStack>
+    </EditForm>
+}
+
+@code {
+    /// <summary>An already-loaded row. When omitted the form loads its own.</summary>
+    [Parameter] public TenantSetting? Model { get; set; }
+
+    [Parameter] public EventCallback<TenantSetting> OnSaved { get; set; }
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _loadError;
+    private string? _zoneCountryIso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model is null)
+        {
+            var result = await TenantSettingService.GetForTenantAsync();
+            if (!result.Successful || result.Value is not TenantSetting loaded)
+            {
+                _loadError = result.Errors.FirstOrDefault()
+                    ?? result.Message
+                    ?? "Your billing settings could not be loaded.";
+                _loading = false;
+                return;
+            }
+
+            Model = loaded;
+        }
+
+        _zoneCountryIso = TimeZones.FindCountry(Model.TimeZoneId);
+        Model.CurrencyMinorUnits ??= (short)(Currencies.Find(Model.CurrencyCode)?.MinorUnits ?? 2);
+        SettingsState.Set(Model);
+        _loading = false;
+    }
+
+    private void OnCurrencyChanged(string? code)
+    {
+        Model!.CurrencyCode = code;
+        Model.CurrencyMinorUnits = (short)(Currencies.Find(code)?.MinorUnits ?? 2);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || Model is null) return;
+
+        _saving = true;
+
+        try
+        {
+            var result = await TenantSettingService.SaveAsync(Model);
+            if (result.Successful && result.Value is TenantSetting saved)
+            {
+                Model = saved;
+                SettingsState.Set(saved);
+                Snackbar.Add("Billing settings saved.", Severity.Success);
+                await OnSaved.InvokeAsync(saved);
+            }
+            else
+            {
+                Snackbar.Add(
+                    result.Errors.FirstOrDefault() ?? result.Message ?? "Settings could not be saved.",
+                    Severity.Error);
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

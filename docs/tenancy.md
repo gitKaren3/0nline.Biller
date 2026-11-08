@@ -18,8 +18,10 @@ Tenant scoping is per entity: a table is isolated only when its generated provid
 | `Image` | yes | all five queries | `api/biller/image` |
 | `TenantRate` | yes | all five queries | `api/biller/tenantrate` |
 | `BankAccount` | yes | all five queries | `api/biller/bankaccount` |
+| `TenantSetting` | yes | all five queries | `api/biller/tenantsetting` (get/save one row) |
 | `Tenant` | no — it *is* the tenant | no | `api/biller/tenant` |
 | `Tier` | no | no | `api/biller/tier` |
+| `TaxScheme` | no | no | no controller — generated enum |
 | `RateType` | no | no | no controller |
 | `InvoiceStatus` | no | no | `api/biller/invoicestatus` |
 | `InvoiceLine` | no | no | read through invoice detail (no controller) |
@@ -90,6 +92,9 @@ The tenant is created immediately after login, before the Get Started form is sh
 4. The form creates/updates its own `Contact` and `Company` (both are tenant rows), then
    calls `POST api/biller/tenant/attach` with their ids. The service verifies each row
    carries this tenant's `TenantID` before setting the pointers.
+5. The ensure step also creates the tenant's `TenantSetting` row (currency, time zone and
+   default tax rate) from the account's preferred country and zone. It is best-effort:
+   the settings read repairs a missing row, and first login must not be stranded by it.
 
 `register`, `createorupdate` and `foruser/{userid}` remain for compatibility, but the
 body `UserId`/`ID` is ignored, `register` is just `ensure`, and `foruser` only answers for

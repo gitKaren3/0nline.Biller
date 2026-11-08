@@ -11,7 +11,7 @@ namespace _0nline.Biller.DL.Providers
             : base(new DbTableDescriptor("Company")
             {
                 KeyColumns = new[] { "ID" },
-                EditableColumns = new[] { "TenantID", "Name", "BillingContactID", "Registration", "Address", "AddressCity", "AddressCode", "AddressCountry", "Phone", "LogoImageID", "Active" },
+                EditableColumns = new[] { "TenantID", "Name", "BillingContactID", "Registration", "Address", "AddressCity", "AddressCode", "AddressCountry", "Phone", "LogoImageID", "Active", "CountryCode", "TaxNumber", "TaxSchemeID" },
                 ActiveColumn = "Active",
                 LookupLabel = new LookupLabel(new[] { "Name" }, " "),
                 LookupFilter = "\"ID\" IS DISTINCT FROM (SELECT \"CompanyID\" FROM \"Tenant\" WHERE \"ID\" = @TenantId)"

@@ -1,13 +1,18 @@
+using _0nline.Biller.DL.Contract.Enums;
+using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Biller.DL.Services.Base;
+using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
-using Dapper;
 using _0nline.Shared.Db.Contract.Interfaces;
+using _0nline.Shared.Location.Interfaces;
 using _0nline.Shared.Services;
+using Dapper;
+using System.Text.RegularExpressions;
 
 namespace _0nline.Biller.DL.Services
 {
@@ -15,21 +20,98 @@ namespace _0nline.Biller.DL.Services
     {
         private readonly IFileStoreService _fileStoreService;
         private readonly ICompanyContactLinkService _companyContactLinkService;
+        private readonly ICountryCatalog _countries;
 
         public CompanyService(IDbContextProvider<BillerDbConfig> ctx, ISqlQueryProvider<Company> queryService, ITenantContext tenancyContext
-            , IFileStoreService fileStoreService, ICompanyContactLinkService companyContactLinkService)
+            , IFileStoreService fileStoreService, ICompanyContactLinkService companyContactLinkService, ICountryCatalog countries)
             : base(ctx, queryService, tenancyContext)
         {
             _fileStoreService = fileStoreService;
             _companyContactLinkService = companyContactLinkService;
+            _countries = countries;
         }
 
         public new Task<Result<Company[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
-        public new Task<Result<Company>> CreateAsync(Company entity) => base.CreateAsync(entity);
-        public new Task<Result<Company>> UpdateAsync(Company entity) => base.UpdateAsync(entity);
+        public new async Task<Result<Company>> CreateAsync(Company entity)
+        {
+            PrepareTaxIdentity(entity);
+
+            return ValidateTaxIdentity(entity) is { } error
+                ? Result<Company>.Failure(ErrorCode.ValidationFailed, error)
+                : await base.CreateAsync(entity);
+        }
+
+        public new async Task<Result<Company>> UpdateAsync(Company entity)
+        {
+            PrepareTaxIdentity(entity);
+
+            return ValidateTaxIdentity(entity) is { } error
+                ? Result<Company>.Failure(ErrorCode.ValidationFailed, error)
+                : await base.UpdateAsync(entity);
+        }
+
         public new Task<Result<Company?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
+
+        /// <summary>
+        /// The tax scheme is a global lookup. Leaving its navigation object on the
+        /// entity would make the generic navigation save try to update the lookup row
+        /// itself, so writes carry only the foreign key.
+        /// </summary>
+        private static void PrepareTaxIdentity(Company entity)
+        {
+            entity.TaxScheme = null;
+
+            if (string.IsNullOrWhiteSpace(entity.CountryCode))
+                return;
+
+            entity.CountryCode = entity.CountryCode.Trim().ToUpperInvariant();
+        }
+
+        /// <summary>
+        /// A company is tax-registered when it names a scheme. That makes the number
+        /// mandatory, and where the country catalogue knows the number's shape, it must
+        /// match. The scheme is cleared together with the number when the switch is off,
+        /// so an unregistered company cannot keep a stale registration number.
+        /// </summary>
+        private string? ValidateTaxIdentity(Company entity)
+        {
+            if (entity.TaxSchemeID is not short schemeId)
+            {
+                entity.TaxNumber = null;
+                return null;
+            }
+
+            if (!Enum.IsDefined((TaxSchemeKind)schemeId))
+                return "Choose a valid tax scheme.";
+
+            // Legacy rows only carry the country name. Resolve the ISO code so the
+            // number can be checked and so the invoice can print it consistently.
+            var country = _countries.FindByIso(entity.CountryCode)
+                          ?? _countries.FindByName(entity.AddressCountry);
+
+            if (country is null)
+                return "Choose the country where the business is registered for tax.";
+
+            entity.CountryCode = country.Iso2;
+
+            if (string.IsNullOrWhiteSpace(entity.TaxNumber))
+                return "Enter the tax registration number, or switch tax registration off.";
+
+            if (!string.IsNullOrWhiteSpace(country.VatNumberPattern)
+                && !Regex.IsMatch(
+                    entity.TaxNumber.Trim(),
+                    country.VatNumberPattern,
+                    RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
+                    TimeSpan.FromMilliseconds(250)))
+            {
+                return $"That does not look like a valid {country.Name} tax number.";
+            }
+
+            entity.TaxNumber = entity.TaxNumber.Trim();
+            return null;
+        }
 
         /// <summary>
         /// The tenant's clients: every company it owns except its own profile. The
@@ -54,7 +136,8 @@ namespace _0nline.Biller.DL.Services
                        c.{Quoted("BillingContactID")}, c.{Quoted("Registration")},
                        c.{Quoted("Address")}, c.{Quoted("AddressCity")}, c.{Quoted("AddressCode")},
                        c.{Quoted("AddressCountry")}, c.{Quoted("Phone")}, c.{Quoted("LogoImageID")},
-                       c.{Quoted("Active")},
+                       c.{Quoted("Active")}, c.{Quoted("CountryCode")}, c.{Quoted("TaxNumber")},
+                       c.{Quoted("TaxSchemeID")},
                        bc.{Quoted("ID")} AS {Quoted("ContactID")},
                        bc.{Quoted("TenantID")} AS {Quoted("ContactTenantID")},
                        bc.{Quoted("UserId")} AS {Quoted("ContactUserId")},
@@ -88,6 +171,9 @@ namespace _0nline.Biller.DL.Services
                 Phone = row.Phone,
                 LogoImageID = row.LogoImageID,
                 Active = row.Active,
+                CountryCode = row.CountryCode,
+                TaxNumber = row.TaxNumber,
+                TaxSchemeID = row.TaxSchemeID,
                 BillingContact = row.ContactID is int contactId
                     ? new Contact
                     {
@@ -146,6 +232,9 @@ namespace _0nline.Biller.DL.Services
             public long? Phone { get; set; }
             public int? LogoImageID { get; set; }
             public bool? Active { get; set; }
+            public string? CountryCode { get; set; }
+            public string? TaxNumber { get; set; }
+            public short? TaxSchemeID { get; set; }
 
             public int? ContactID { get; set; }
             public int? ContactTenantID { get; set; }
