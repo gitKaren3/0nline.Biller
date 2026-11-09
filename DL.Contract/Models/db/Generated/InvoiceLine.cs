@@ -30,7 +30,7 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         [Editable(true)]
         [Required(ErrorMessage = "Required")]
-        public short? Qty { get; set; }
+        public decimal? Qty { get; set; }
 
         [Editable(true)]
         [ForeignKey("TenantRate")]

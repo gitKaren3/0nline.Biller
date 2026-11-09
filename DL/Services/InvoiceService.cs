@@ -10,6 +10,7 @@ using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Interfaces;
 using _0nline.Shared.Location;
 using Dapper;
+using Npgsql;
 using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus;
 using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme;
 
@@ -118,9 +119,7 @@ namespace _0nline.Biller.DL.Services
                 return Result<Invoice>.Failure(ErrorCode.ValidationFailed, defaults.Error);
 
             var autoNumber = string.IsNullOrWhiteSpace(invoice.InvoiceNumber);
-            if (autoNumber)
-                invoice.InvoiceNumber = "TMP-" + Guid.NewGuid().ToString("N")[..20];
-            else
+            if (!autoNumber)
                 invoice.InvoiceNumber = invoice.InvoiceNumber!.Trim();
 
             var validationError = await ValidateAsync(invoice, defaults.Value);
@@ -139,14 +138,10 @@ namespace _0nline.Biller.DL.Services
 
             try
             {
-                await InsertAsync(invoice, invoiceProperties, conn, tran);
-
                 if (autoNumber)
-                {
-                    invoice.InvoiceNumber =
-                        $"INV-{invoice.InvoiceDate?.Year ?? DateTime.Today.Year}-{invoice.ID:D5}";
-                    await UpdateAsync(invoice, invoiceProperties, conn, tran);
-                }
+                    invoice.InvoiceNumber = await AllocateInvoiceNumberAsync(conn, tran);
+
+                await InsertAsync(invoice, invoiceProperties, conn, tran);
 
                 foreach (var line in lines)
                 {
@@ -156,6 +151,14 @@ namespace _0nline.Biller.DL.Services
                 }
 
                 tran.Commit();
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            {
+                // The service checks before writing; this is the guarantee under a race.
+                tran.Rollback();
+                return Result<Invoice>.Failure(
+                    ErrorCode.Conflict,
+                    $"Invoice number {invoice.InvoiceNumber} is already used.");
             }
             catch
             {
@@ -322,6 +325,32 @@ namespace _0nline.Biller.DL.Services
             return DateTime.UtcNow.Date;
         }
 
+        /// <summary>
+        /// Draws the next number from the tenant's counter and increments it in the same
+        /// statement, so two concurrent creates cannot receive the same number. Runs in
+        /// the caller's transaction: a failed create rolls the number back too.
+        /// </summary>
+        private async Task<string> AllocateInvoiceNumberAsync(
+            System.Data.IDbConnection conn, System.Data.IDbTransaction tran)
+        {
+            var tenantId = RequireTenantId();
+
+            var number = await conn.ExecuteScalarAsync<string?>(
+                @"UPDATE ""TenantSetting""
+                     SET ""NextInvoiceNumber"" = COALESCE(""NextInvoiceNumber"", 1) + 1
+                   WHERE ""TenantID"" = @TenantId
+               RETURNING COALESCE(""InvoiceNumberPrefix"", '')
+                         || (COALESCE(""NextInvoiceNumber"", 2) - 1)::text",
+                new { TenantId = tenantId },
+                tran);
+
+            if (string.IsNullOrWhiteSpace(number))
+                throw new InvalidOperationException(
+                    "Billing settings are required to number an invoice.");
+
+            return number;
+        }
+
         private async Task<string?> ValidateAsync(Invoice invoice, InvoiceDefaults defaults)
         {
             if (invoice.IssuedToContactID <= 0)
@@ -386,6 +415,22 @@ namespace _0nline.Biller.DL.Services
 
             using var conn = Connection;
             var tenantId = RequireTenantId();
+
+            // A number supplied by the caller must be unique within the tenant. A blank
+            // number is auto-assigned and cannot clash, so only check a supplied one.
+            if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
+            {
+                var number = invoice.InvoiceNumber.Trim();
+                var duplicate = await conn.ExecuteScalarAsync<int?>(
+                    @"SELECT 1 FROM ""Invoice""
+                      WHERE ""TenantID"" = @TenantId
+                        AND ""InvoiceNumber"" = @Number
+                        AND ""ID"" <> @Id",
+                    new { TenantId = tenantId, Number = number, Id = invoice.ID });
+
+                if (duplicate is not null)
+                    return $"Invoice number {number} is already used.";
+            }
 
             var contactExists = await conn.ExecuteScalarAsync<int?>(
                 @"SELECT 1 FROM ""Contact"" WHERE ""ID"" = @Id AND ""TenantID"" = @TenantId",

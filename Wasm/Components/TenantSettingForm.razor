@@ -55,10 +55,26 @@ else
                 <ValidationMessage For="@(() => model.TimeZoneId)" />
             </MudItem>
 
+            <MudItem xs="12" sm="6" lg="3">
+                <MudTextField Label="Invoice number prefix" Class="mt-3" ShrinkLabel="true"
+                              @bind-Value="model.InvoiceNumberPrefix"
+                              For="@(() => model.InvoiceNumberPrefix)"
+                              HelperText="Printed before the number, e.g. INV-" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" lg="3">
+                <MudNumericField T="int?" Label="Next invoice number" Class="mt-3" ShrinkLabel="true"
+                                 @bind-Value="model.NextInvoiceNumber"
+                                 For="@(() => model.NextInvoiceNumber)"
+                                 Min="1"
+                                 HelperText="The number the next invoice will use." />
+            </MudItem>
+
             <MudItem xs="12">
                 <MudText Typo="Typo.caption" Class="mt-2">
                     Currency is copied onto each new invoice, so changing it here does not
-                    reinterpret invoices already issued.
+                    reinterpret invoices already issued. Invoice numbers increment
+                    automatically; raise the next number if you have already invoiced elsewhere.
                 </MudText>
             </MudItem>
         </MudGrid>

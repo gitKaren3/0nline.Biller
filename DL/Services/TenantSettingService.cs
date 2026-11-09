@@ -129,14 +129,18 @@ namespace _0nline.Biller.DL.Services
                 $@"INSERT INTO {Quoted("TenantSetting")}
                        ({Quoted("TenantID")}, {Quoted("CurrencyCode")},
                         {Quoted("CurrencyMinorUnits")}, {Quoted("TimeZoneId")},
-                        {Quoted("DefaultTaxRate")})
+                        {Quoted("DefaultTaxRate")}, {Quoted("InvoiceNumberPrefix")},
+                        {Quoted("NextInvoiceNumber")})
                    VALUES (@TenantID, @CurrencyCode, @CurrencyMinorUnits,
-                           @TimeZoneId, @DefaultTaxRate)
+                           @TimeZoneId, @DefaultTaxRate, @InvoiceNumberPrefix,
+                           @NextInvoiceNumber)
                    ON CONFLICT ({Quoted("TenantID")}) DO UPDATE SET
                        {Quoted("CurrencyCode")} = EXCLUDED.{Quoted("CurrencyCode")},
                        {Quoted("CurrencyMinorUnits")} = EXCLUDED.{Quoted("CurrencyMinorUnits")},
                        {Quoted("TimeZoneId")} = EXCLUDED.{Quoted("TimeZoneId")},
-                       {Quoted("DefaultTaxRate")} = EXCLUDED.{Quoted("DefaultTaxRate")}
+                       {Quoted("DefaultTaxRate")} = EXCLUDED.{Quoted("DefaultTaxRate")},
+                       {Quoted("InvoiceNumberPrefix")} = EXCLUDED.{Quoted("InvoiceNumberPrefix")},
+                       {Quoted("NextInvoiceNumber")} = EXCLUDED.{Quoted("NextInvoiceNumber")}
                    RETURNING *",
                 new
                 {
@@ -144,7 +148,9 @@ namespace _0nline.Biller.DL.Services
                     CurrencyCode = currency.Code,
                     CurrencyMinorUnits = (short)currency.MinorUnits,
                     TimeZoneId = setting.TimeZoneId!.Trim(),
-                    DefaultTaxRate = setting.DefaultTaxRate ?? 0m
+                    DefaultTaxRate = setting.DefaultTaxRate ?? 0m,
+                    InvoiceNumberPrefix = (setting.InvoiceNumberPrefix ?? string.Empty).Trim(),
+                    NextInvoiceNumber = setting.NextInvoiceNumber is int next && next > 0 ? next : 1
                 });
 
             return Result<TenantSetting>.Success(saved);
@@ -225,6 +231,12 @@ namespace _0nline.Biller.DL.Services
 
             if (setting.DefaultTaxRate is < 0 or > 100)
                 return "The default tax rate must be between 0 and 100.";
+
+            if ((setting.InvoiceNumberPrefix ?? string.Empty).Trim().Length > 20)
+                return "The invoice number prefix may not exceed 20 characters.";
+
+            if (setting.NextInvoiceNumber is int next && next < 1)
+                return "The next invoice number must be at least 1.";
 
             return null;
         }

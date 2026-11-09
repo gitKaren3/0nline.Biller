@@ -8,7 +8,7 @@ namespace _0nline.Biller.DL.Contract.Models
         /// <summary>The rate type's name, when it explains the line.</summary>
         public string? RateName { get; init; }
 
-        public short Qty { get; init; }
+        public decimal Qty { get; init; }
 
         public decimal UnitPrice { get; init; }
 

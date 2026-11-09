@@ -33,7 +33,7 @@ namespace _0nline.Biller.DL.Reports
                                && rateTypes.TryGetValue(rateTypeId, out var rateName)
                         ? rateName
                         : null,
-                    Qty = line.Qty ?? 0,
+                    Qty = line.Qty ?? 0m,
                     UnitPrice = line.BilledRateIncl ?? 0m,
                     Tax = line.TotalTax ?? 0m,
                     TaxRate = line.TaxRate ?? 0m,

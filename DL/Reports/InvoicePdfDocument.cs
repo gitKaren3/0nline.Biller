@@ -86,7 +86,7 @@ namespace _0nline.Biller.DL.Reports
                     column.Item().AlignRight().Text(model.InvoiceNumber).FontSize(11).SemiBold();
 
                     if (model.InvoiceDate != DateTime.MinValue)
-                        column.Item().AlignRight().Text(model.InvoiceDate.ToString("dd MMMM yyyy"))
+                        column.Item().AlignRight().Text(model.InvoiceDate.ToString("d MMM yyyy", CultureInfo.InvariantCulture))
                             .FontColor(Muted);
 
                     if (!string.IsNullOrWhiteSpace(model.StatusName))
@@ -162,7 +162,7 @@ namespace _0nline.Biller.DL.Reports
                             column.Item().Text(line.RateName).FontSize(7).FontColor(Muted);
                     });
 
-                    table.Cell().Element(BodyCell).AlignRight().Text(line.Qty.ToString());
+                    table.Cell().Element(BodyCell).AlignRight().Text(line.Qty.ToString("0.##", CultureInfo.InvariantCulture));
                     table.Cell().Element(BodyCell).AlignRight().Text(Money(line.UnitPrice, model));
                     table.Cell().Element(BodyCell).AlignRight().Text(Money(line.Tax, model));
                     table.Cell().Element(BodyCell).AlignRight().Text(Money(line.Amount, model));

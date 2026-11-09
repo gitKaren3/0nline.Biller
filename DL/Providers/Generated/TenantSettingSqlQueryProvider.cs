@@ -11,7 +11,7 @@ namespace _0nline.Biller.DL.Providers
             : base(new DbTableDescriptor("TenantSetting")
             {
                 KeyColumns = new[] { "ID" },
-                EditableColumns = new[] { "TenantID", "CurrencyCode", "CurrencyMinorUnits", "TimeZoneId", "DefaultTaxRate" },
+                EditableColumns = new[] { "TenantID", "CurrencyCode", "CurrencyMinorUnits", "TimeZoneId", "DefaultTaxRate", "InvoiceNumberPrefix", "NextInvoiceNumber" },
                 ActiveColumn = null,
                 LookupLabel = new LookupLabel(new[] { "CurrencyCode" }, " "),
                 LookupFilter = null

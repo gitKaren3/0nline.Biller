@@ -182,7 +182,8 @@ An invoice is rendered from a snapshot, never from the live rows:
   revoking a link or issuing a second one never touches the invoice.
 
 Do not add a by-id public read: the id is enumerable and the token is not. Deleting an
-invoice removes its snapshots through the foreign-key cascade, so `TenantService.PurgeAsync`
+invoice removes its lines and snapshots through the foreign-key cascade (see
+`docs/migrations/2026-11-09-invoice-line-cascade.sql`), so `TenantService.PurgeAsync`
 needs no extra step.
 
 ## Closing and purging

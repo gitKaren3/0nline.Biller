@@ -64,11 +64,16 @@ Validation (server-side):
 
 ## Numbering
 
-If `InvoiceNumber` is blank on create, the server assigns
-`INV-{year}-{invoiceId:D5}`, e.g. `INV-2026-00042`. This is deliberate placeholder
-policy, not a domain decision: it is globally sequential and reveals the row id.
-Replace it with the tenant's real scheme (and a uniqueness constraint) when that is
-decided. A number supplied by the client is kept.
+Numbers are per tenant and sequential. `TenantSetting.NextInvoiceNumber` is the next
+number to assign and `TenantSetting.InvoiceNumberPrefix` (optional, e.g. `INV-`) is
+printed in front of it. When `InvoiceNumber` is blank on create the service draws the
+number and increments the counter in one statement inside the invoice's transaction, so
+a failed create does not consume a number. A tenant that has already invoiced elsewhere
+raises the next number once in Settings.
+
+A number supplied by the client is kept. `(TenantID, InvoiceNumber)` is unique, so the
+same number cannot be saved twice; the service checks first to return a friendly message
+and the unique index is the guarantee under concurrency.
 
 ## Preview
 

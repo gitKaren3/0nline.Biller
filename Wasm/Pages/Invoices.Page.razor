@@ -1,0 +1,149 @@
+@page "/invoices"
+
+@inject IInvoiceService InvoiceService
+@inject IContactService ContactService
+@inject IInvoiceStatusService InvoiceStatusService
+@inject NavigationManager Navigation
+
+<PageTitle>e-Biller | Invoices</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <MudText Typo="Typo.h3" Class="py-2">Invoices</MudText>
+
+        <MudPaper Class="py-3 px-3">
+            @if (_loading)
+            {
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-4 d-block mx-auto" />
+            }
+            else if (_loadError != null)
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="my-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudText>@_loadError</MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ReloadAsync">Try again</MudButton>
+                    </MudStack>
+                </MudAlert>
+            }
+            else
+            {
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+                    <MudText Typo="Typo.body2">
+                        The invoices you have issued. Open one to edit its draft or view its preview.
+                    </MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="CreateNew">
+                        New invoice
+                    </MudButton>
+                </MudStack>
+
+                @if (_invoices.Count == 0)
+                {
+                    <MudText Typo="Typo.body2">
+                        No invoices yet. Create one to send your first bill.
+                    </MudText>
+                }
+                else
+                {
+                    <MudPaper Outlined="true" Elevation="0">
+                        @for (int i = 0; i < _invoices.Count; i++)
+                        {
+                            var invoice = _invoices[i];
+
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
+                                      Class="px-4 py-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.subtitle2">@(invoice.InvoiceNumber ?? "Draft")</MudText>
+                                    <MudText Typo="Typo.body2">@CustomerName(invoice)</MudText>
+                                </MudStack>
+
+                                <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
+                                    <MudText Typo="Typo.body2">@FormatDate(invoice.InvoiceDate)</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">@StatusName(invoice)</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small"
+                                                   aria-label="Open invoice" OnClick="@(() => Open(invoice))" />
+                                </MudStack>
+                            </MudStack>
+
+                            @if (i < _invoices.Count - 1)
+                            {
+                                <MudDivider />
+                            }
+                        }
+                    </MudPaper>
+                }
+            }
+        </MudPaper>
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private const string LoadErrorMessage = "We could not load your invoices. Please try again.";
+
+    private List<Invoice> _invoices = new();
+    private IReadOnlyDictionary<int, string> _contacts = new Dictionary<int, string>();
+    private IReadOnlyDictionary<int, string> _statuses = new Dictionary<int, string>();
+
+    private bool _loading = true;
+    private string? _loadError;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        try
+        {
+            var invoicesTask = InvoiceService.GetAllAsync();
+            var contactsTask = ContactService.GetLookupAsync();
+            var statusesTask = InvoiceStatusService.GetLookupAsync();
+
+            await Task.WhenAll(invoicesTask, contactsTask, statusesTask);
+
+            var invoices = await invoicesTask;
+            var contacts = await contactsTask;
+            var statuses = await statusesTask;
+
+            if (!invoices.Successful || invoices.Value is not Invoice[] list)
+            {
+                _loadError = Describe(invoices, LoadErrorMessage);
+                return;
+            }
+
+            _invoices = list.ToList();
+            _contacts = contacts.Successful && contacts.Value != null ? contacts.Value : _contacts;
+            _statuses = statuses.Successful && statuses.Value != null ? statuses.Value : _statuses;
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"{LoadErrorMessage} ({ex.Message})";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreateNew() => Navigation.NavigateTo("/invoice/0");
+
+    private void Open(Invoice invoice) => Navigation.NavigateTo($"/invoice/{invoice.ID}");
+
+    private string CustomerName(Invoice invoice)
+        => invoice.IssuedToContactID > 0 && _contacts.TryGetValue(invoice.IssuedToContactID, out var name)
+            ? name
+            : "No contact";
+
+    private string StatusName(Invoice invoice)
+        => _statuses.TryGetValue(invoice.InvoiceStatusID, out var name) ? name : "Draft";
+
+    private static string? FormatDate(DateTime? date) => date?.ToString("MMM d, yyyy");
+
+    private static string Describe(Result result, string fallback)
+        => result.Errors.FirstOrDefault()
+            ?? (!string.IsNullOrWhiteSpace(result.Message) ? result.Message : fallback);
+}

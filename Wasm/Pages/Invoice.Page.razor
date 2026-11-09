@@ -1,0 +1,729 @@
+@page "/invoice/{Id:int}"
+
+@using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus
+
+@inject IInvoiceService InvoiceService
+@inject IContactService ContactService
+@inject ICompanyService CompanyService
+@inject ITenantRateService TenantRateService
+@inject IRateTypeService RateTypeService
+@inject ITenantSettingService TenantSettingService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<HeadContent>
+    <style>
+        .invoice-lines-table thead th {
+            background-color: var(--mud-palette-primary) !important;
+            color: var(--mud-palette-primary-text) !important;
+            font-weight: 600;
+            border-bottom: none !important;
+        }
+
+        .invoice-lines-table thead th:first-child {
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+
+        .invoice-lines-table thead th:last-child {
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .invoice-lines-editable .mud-table-cell {
+            border-bottom: none !important;
+        }
+    </style>
+</HeadContent>
+
+<PageTitle>e-Biller | @(Id > 0 ? $"Invoice {_invoice.InvoiceNumber}" : "New invoice")</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        @if (_loading)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Class="my-8 d-block mx-auto" />
+        }
+        else if (_loadError != null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="my-4">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <MudText>@_loadError</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ReloadAsync">Try again</MudButton>
+                </MudStack>
+            </MudAlert>
+        }
+        else if (_previewVisible)
+        {
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3 flex-wrap">
+                <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="ClosePreview">Back</MudButton>
+
+                @if (IsDraft)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Lock"
+                               OnClick="FinalizeFromPreviewAsync" Disabled="_saving">
+                        @(_saving ? "Finalizing..." : "Finalize")
+                    </MudButton>
+                }
+            </MudStack>
+
+            <MudPaper Outlined="true" Elevation="0" Class="pa-0" Style="height: 78vh;">
+                <iframe src="@_previewUrl" style="width:100%; height:100%; border:0;" title="Invoice preview"></iframe>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="py-3 px-3">
+                <MudForm @ref="_form">
+
+                    @* Reference details first: number, date, status. *@
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start"
+                              Spacing="3" Class="flex-wrap">
+                        <MudStack Row="true" Spacing="4" Class="flex-wrap">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Invoice number</MudText>
+                                <MudTextField T="string" @bind-Value="_invoice.InvoiceNumber" Placeholder="Auto"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Disabled="@(!IsDraft)" Style="min-width: 150px;" />
+                            </MudStack>
+
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Invoice date</MudText>
+                                <MudDatePicker @bind-Date="_invoice.InvoiceDate" DateFormat="MMM d, yyyy"
+                                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                                               Required="true" RequiredError="Choose a date."
+                                               Disabled="@(!IsDraft)" Style="min-width: 180px;" />
+                            </MudStack>
+                        </MudStack>
+
+                        <MudChip T="string" Icon="@StatusIcon" Color="@StatusColor"
+                                 Variant="Variant.Filled" Size="Size.Medium">
+                            @StatusLabel
+                        </MudChip>
+                    </MudStack>
+
+                    <MudGrid Class="mt-4">
+                        <MudItem xs="12" sm="6" lg="4">
+                            <MudSelect T="int?" Label="Contact" ShrinkLabel="true"
+                                       Required="true" RequiredError="Choose a contact."
+                                       Disabled="@(!IsDraft)"
+                                       @bind-Value="_invoice.IssuedToContactSelection">
+                                @foreach (var contact in ContactOptions)
+                                {
+                                    <MudSelectItem T="int?" Value="@contact.Key">@contact.Value</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" lg="4">
+                            <MudSelect T="int?" Label="Company (optional)" ShrinkLabel="true" Clearable="true"
+                                       Disabled="@(!IsDraft)"
+                                       @bind-Value="_invoice.CompanyID">
+                                @foreach (var company in CompanyOptions)
+                                {
+                                    <MudSelectItem T="int?" Value="@company.Key">@company.Value</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" lg="4">
+                            <MudTextField Label="Payment reference (optional)" ShrinkLabel="true"
+                                          Disabled="@(!IsDraft)"
+                                          @bind-Value="_invoice.PaymentRef" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <div class="mt-8"></div>
+
+                    <MudTable Items="@_invoice.InvoiceLines" Hover="true" Dense="true" Elevation="0"
+                              Class="@(IsDraft ? "invoice-lines-table invoice-lines-editable" : "invoice-lines-table")">
+                        <ColGroup>
+                            <col />
+                            <col style="width: 26%;" />
+                            <col style="width: 120px;" />
+                            <col style="width: 18%;" />
+                            <col style="width: 16%;" />
+                            @if (IsDraft)
+                            {
+                                <col style="width: 48px;" />
+                            }
+                        </ColGroup>
+                        <HeaderContent>
+                            <MudTh>Description</MudTh>
+                            <MudTh>Rate</MudTh>
+                            <MudTh Style="text-align:right">Qty</MudTh>
+                            <MudTh Style="text-align:right">Unit price</MudTh>
+                            <MudTh Style="text-align:right">Amount</MudTh>
+                            @if (IsDraft)
+                            {
+                                <MudTh></MudTh>
+                            }
+                        </HeaderContent>
+                        <RowTemplate Context="line">
+                            <MudTd DataLabel="Description">
+                                @if (IsDraft)
+                                {
+                                    <MudTextField T="string" Required="true" RequiredError="Required."
+                                                  @bind-Value="line.Description" />
+                                }
+                                else
+                                {
+                                    <MudText>@line.Description</MudText>
+                                }
+                            </MudTd>
+
+                            <MudTd DataLabel="Rate">
+                                @if (IsDraft)
+                                {
+                                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                        <MudSelect T="int?" Required="true" RequiredError="Choose a rate."
+                                                   Value="@line.RateSelection"
+                                                   ValueChanged="@(v => OnRateChanged(line, v))">
+                                            @foreach (var rate in _rates)
+                                            {
+                                                <MudSelectItem T="int?" Value="@rate.ID">@RateLabel(rate)</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                        <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
+                                                       aria-label="Add a rate" OnClick="@(() => AddRateAsync(line))" />
+                                    </MudStack>
+                                }
+                                else
+                                {
+                                    <MudText>@RateLabelFor(line.TenantRateID)</MudText>
+                                }
+                            </MudTd>
+
+                            <MudTd DataLabel="Qty" Style="text-align:right">
+                                @if (IsDraft)
+                                {
+                                    <MudNumericField T="decimal?" Min="@(0.01m)" Step="@(0.25m)"
+                                                     Required="true" RequiredError="Required."
+                                                     @bind-Value="line.Qty" />
+                                }
+                                else
+                                {
+                                    <MudText>@FormatQty(line.Qty)</MudText>
+                                }
+                            </MudTd>
+
+                            <MudTd DataLabel="Unit price" Style="text-align:right">
+                                @if (IsDraft)
+                                {
+                                    <MudNumericField T="decimal?" Min="0" Format="@($"N{_minorUnits}")"
+                                                     Required="true" RequiredError="Required."
+                                                     @bind-Value="line.BilledRateIncl" />
+                                }
+                                else
+                                {
+                                    <MudText>@Money(line.BilledRateIncl ?? 0m)</MudText>
+                                }
+                            </MudTd>
+
+                            <MudTd DataLabel="Amount" Style="text-align:right">
+                                <MudText>@Money(LineAmount(line))</MudText>
+                            </MudTd>
+
+                            @if (IsDraft)
+                            {
+                                <MudTd Style="text-align:right">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                   aria-label="Remove line" OnClick="@(() => RemoveLine(line))" />
+                                </MudTd>
+                            }
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText Typo="Typo.body2" Class="pa-4">No line items yet.</MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+
+                    @if (IsDraft)
+                    {
+                        <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.Add" Class="mt-1" OnClick="AddLine">
+                            Add line
+                        </MudButton>
+                    }
+
+                    <MudDivider Class="my-4" />
+
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
+                              Class="flex-wrap">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="max-width: 420px;">
+                            Prices are tax-inclusive; the tax breakdown appears on the invoice.
+                        </MudText>
+
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Typo="Typo.subtitle1">Total</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Primary">@Money(Total)</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudForm>
+
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-4">
+                    <MudStack Row="true" Spacing="1">
+                        <MudButton OnClick="Back">Back</MudButton>
+                        @if (IsDraft && _invoice.ID > 0)
+                        {
+                            <MudButton Color="Color.Error" OnClick="DeleteAsync" Disabled="_saving">Delete</MudButton>
+                        }
+                    </MudStack>
+
+                    <MudStack Row="true" Spacing="1">
+                        @if (IsDraft)
+                        {
+                            <MudButton OnClick="SaveAsync" Disabled="_saving">
+                                @(_saving ? "Saving..." : "Save draft")
+                            </MudButton>
+
+                            @if (_invoice.ID > 0)
+                            {
+                                <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                                           OnClick="FinalizeAsync" Disabled="_saving">
+                                    Finalize
+                                </MudButton>
+                            }
+                        }
+
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="PreviewAsync" Disabled="_saving || _previewing"
+                                   StartIcon="@Icons.Material.Filled.PictureAsPdf">
+                            @(_previewing ? "Generating..." : (IsDraft ? "Save & preview" : "Preview"))
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private const string LoadErrorMessage = "The invoice could not be opened.";
+
+    [Parameter] public int Id { get; set; }
+
+    private Invoice _invoice = new();
+    private TenantSetting? _settings;
+    private IReadOnlyDictionary<int, string> _contacts = new Dictionary<int, string>();
+    private IReadOnlyDictionary<int, string> _companies = new Dictionary<int, string>();
+    private IReadOnlyDictionary<int, string> _rateTypes = new Dictionary<int, string>();
+    private List<TenantRate> _rates = new();
+
+    private string _currencyCode = "ZAR";
+    private string _currencySymbol = "R";
+    private int _minorUnits = 2;
+
+    private MudForm? _form;
+    private int _loadedId = -1;
+    private bool _lookupsLoaded;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _previewing;
+    private string? _loadError;
+    private bool _previewVisible;
+    private string? _previewUrl;
+
+    private bool IsDraft => _invoice.InvoiceStatusID == 0 || _invoice.InvoiceStatusID == (short)InvoiceStatusKind.Draft;
+
+    private string StatusLabel => _invoice.InvoiceStatusID switch
+    {
+        (short)InvoiceStatusKind.Finalized => "Finalized",
+        (short)InvoiceStatusKind.Issued => "Issued",
+        (short)InvoiceStatusKind.Viewed => "Viewed",
+        (short)InvoiceStatusKind.Paid => "Paid",
+        (short)InvoiceStatusKind.Cancelled => "Cancelled",
+        _ => "Draft"
+    };
+
+    private string StatusIcon => _invoice.InvoiceStatusID switch
+    {
+        (short)InvoiceStatusKind.Finalized => Icons.Material.Filled.Lock,
+        (short)InvoiceStatusKind.Issued => Icons.Material.Filled.Send,
+        (short)InvoiceStatusKind.Viewed => Icons.Material.Filled.Visibility,
+        (short)InvoiceStatusKind.Paid => Icons.Material.Filled.CheckCircle,
+        (short)InvoiceStatusKind.Cancelled => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.EditNote
+    };
+
+    private Color StatusColor => _invoice.InvoiceStatusID switch
+    {
+        (short)InvoiceStatusKind.Finalized => Color.Info,
+        (short)InvoiceStatusKind.Issued => Color.Primary,
+        (short)InvoiceStatusKind.Viewed => Color.Info,
+        (short)InvoiceStatusKind.Paid => Color.Success,
+        (short)InvoiceStatusKind.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+
+    private IEnumerable<KeyValuePair<int, string>> ContactOptions
+        => _contacts.OrderBy(o => o.Value, StringComparer.CurrentCultureIgnoreCase);
+
+    private IEnumerable<KeyValuePair<int, string>> CompanyOptions
+        => _companies.OrderBy(o => o.Value, StringComparer.CurrentCultureIgnoreCase);
+
+    private static decimal LineAmount(InvoiceLine line) => (line.BilledRateIncl ?? 0m) * (line.Qty ?? 0m);
+
+    private decimal Total => _invoice.InvoiceLines.Sum(LineAmount);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedId == Id)
+            return;
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        _previewVisible = false;
+        _previewUrl = null;
+
+        try
+        {
+            await LoadLookupsAsync();
+
+            if (Id > 0)
+            {
+                var result = await InvoiceService.GetOneAsync(Id);
+                if (!result.Successful || result.Value is not Invoice invoice)
+                {
+                    _loadError = Describe(result, LoadErrorMessage);
+                    return;
+                }
+
+                _invoice = invoice;
+                _invoice.InvoiceLines = invoice.InvoiceLines ?? new();
+            }
+            else
+            {
+                _invoice = new Invoice
+                {
+                    InvoiceDate = DateTime.Today,
+                    InvoiceLines = new() { new InvoiceLine() }
+                };
+            }
+
+            _loadedId = Id;
+            ApplyCurrency();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"{LoadErrorMessage} ({ex.Message})";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loadedId = -1;
+        await LoadAsync();
+    }
+
+    private async Task LoadLookupsAsync()
+    {
+        if (_lookupsLoaded)
+            return;
+
+        _lookupsLoaded = true;
+
+        var contactsTask = ContactService.GetLookupAsync();
+        var companiesTask = CompanyService.GetLookupAsync();
+        var rateTypesTask = RateTypeService.GetLookupAsync();
+        var ratesTask = TenantRateService.GetAllAsync();
+        var settingsTask = TenantSettingService.GetForTenantAsync();
+
+        await Task.WhenAll(contactsTask, companiesTask, rateTypesTask, ratesTask, settingsTask);
+
+        var contacts = await contactsTask;
+        var companies = await companiesTask;
+        var rateTypes = await rateTypesTask;
+        var rates = await ratesTask;
+        var settings = await settingsTask;
+
+        _contacts = contacts.Successful && contacts.Value != null ? contacts.Value : _contacts;
+        _companies = companies.Successful && companies.Value != null ? companies.Value : _companies;
+        _rateTypes = rateTypes.Successful && rateTypes.Value != null ? rateTypes.Value : _rateTypes;
+        _settings = settings.Successful ? settings.Value : _settings;
+
+        if (rates.Successful && rates.Value is TenantRate[] list)
+            _rates = OrderRates(list);
+    }
+
+    private List<TenantRate> OrderRates(IEnumerable<TenantRate> rates) => rates
+        .OrderBy(r => _rateTypes.TryGetValue(r.RateTypeID, out var type) ? type : string.Empty)
+        .ThenBy(r => r.DefaultRate)
+        .ToList();
+
+    private async Task RefreshRatesAsync()
+    {
+        var result = await TenantRateService.GetAllAsync();
+        if (result.Successful && result.Value is TenantRate[] list)
+            _rates = OrderRates(list);
+    }
+
+    private void ApplyCurrency()
+    {
+        string code = _invoice.CurrencyCode ?? _settings?.CurrencyCode ?? "ZAR";
+        var info = CurrencyCatalog.Default.Get(code);
+        _currencyCode = info.Code;
+        _currencySymbol = info.Symbol;
+
+        int minor = info.MinorUnits;
+        if (_invoice.CurrencyMinorUnits is short invoiceMinor) minor = invoiceMinor;
+        else if (_settings?.CurrencyMinorUnits is short settingMinor) minor = settingMinor;
+        _minorUnits = minor;
+    }
+
+    private string Money(decimal value) => $"{_currencySymbol}{value.ToString("N" + _minorUnits)}";
+
+    private static string FormatQty(decimal? qty) => (qty ?? 0m).ToString("0.##");
+
+    private string RateLabel(TenantRate rate)
+    {
+        var type = _rateTypes.TryGetValue(rate.RateTypeID, out var name) ? name : "Rate";
+        var label = $"{type} — {Money(rate.DefaultRate ?? 0m)}";
+        return rate.Active == false ? $"{label} (inactive)" : label;
+    }
+
+    private string RateLabelFor(int rateId)
+    {
+        if (rateId <= 0)
+            return "—";
+
+        var rate = _rates.FirstOrDefault(r => r.ID == rateId);
+        return rate is null ? $"Rate #{rateId}" : RateLabel(rate);
+    }
+
+    private void OnRateChanged(InvoiceLine line, int? rateId)
+    {
+        line.RateSelection = rateId;
+
+        if (rateId is int id)
+        {
+            var rate = _rates.FirstOrDefault(r => r.ID == id);
+            if (rate?.DefaultRate is decimal price)
+                line.BilledRateIncl = price;
+        }
+    }
+
+    private async Task AddRateAsync(InvoiceLine line)
+    {
+        var dialog = await DialogService.ShowAsync<RateDialog>(
+            "Add a rate",
+            new DialogParameters(),
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: TenantRate rate })
+        {
+            await RefreshRatesAsync();
+            OnRateChanged(line, rate.ID);
+        }
+    }
+
+    private void AddLine()
+    {
+        _invoice.InvoiceLines.Add(new InvoiceLine());
+    }
+
+    private void RemoveLine(InvoiceLine line)
+    {
+        _invoice.InvoiceLines.Remove(line);
+    }
+
+    private void Back() => Navigation.NavigateTo("/invoices");
+
+    private void ClosePreview()
+    {
+        _previewVisible = false;
+        _previewUrl = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || !IsDraft)
+            return;
+
+        await _form!.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            Snackbar.Add("Complete the highlighted fields before saving.", Severity.Warning);
+            return;
+        }
+
+        if (_invoice.InvoiceLines.Count == 0)
+        {
+            Snackbar.Add("Add at least one line.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var created = _invoice.ID <= 0;
+            var saved = created
+                ? await InvoiceService.CreateAsync(_invoice)
+                : await InvoiceService.UpdateAsync(_invoice);
+
+            if (!saved.Successful || saved.Value is not Invoice invoice)
+            {
+                Snackbar.Add(Describe(saved, "The invoice could not be saved."), Severity.Error);
+                return;
+            }
+
+            _invoice = invoice;
+            _invoice.InvoiceLines = invoice.InvoiceLines ?? _invoice.InvoiceLines;
+            _loadedId = invoice.ID;
+            ApplyCurrency();
+
+            if (created)
+            {
+                Navigation.NavigateTo($"/invoice/{invoice.ID}", forceLoad: false, replace: true);
+            }
+
+            Snackbar.Add("Invoice saved.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task PreviewAsync()
+    {
+        if (_previewing)
+            return;
+
+        // The editor must save before previewing: preview.pdf renders the saved invoice.
+        if (IsDraft)
+        {
+            if (!await SaveAndPreviewAsync())
+                return;
+        }
+
+        if (_invoice.ID <= 0)
+            return;
+
+        await LoadPreviewAsync();
+    }
+
+    private async Task<bool> SaveAndPreviewAsync()
+    {
+        await SaveAsync();
+        return _invoice.ID > 0;
+    }
+
+    private async Task LoadPreviewAsync()
+    {
+        _previewing = true;
+
+        try
+        {
+            var result = await InvoiceService.PreviewAsync(_invoice.ID);
+            if (result.Successful && result.Value is byte[] bytes && bytes.Length > 0)
+            {
+                _previewUrl = $"data:application/pdf;base64,{Convert.ToBase64String(bytes)}";
+                _previewVisible = true;
+            }
+            else
+            {
+                Snackbar.Add(Describe(result, "The preview could not be generated."), Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Preview failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _previewing = false;
+        }
+    }
+
+    private async Task FinalizeAsync()
+    {
+        if (_saving || !IsDraft || _invoice.ID <= 0)
+            return;
+
+        _saving = true;
+
+        try
+        {
+            var result = await InvoiceService.FinalizeAsync(_invoice.ID);
+            if (!result.Successful || result.Value is not Invoice invoice)
+            {
+                Snackbar.Add(Describe(result, "The invoice could not be finalized."), Severity.Error);
+                return;
+            }
+
+            _invoice = invoice;
+            _invoice.InvoiceLines = invoice.InvoiceLines ?? _invoice.InvoiceLines;
+            Snackbar.Add("Invoice finalized.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Finalize failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task FinalizeFromPreviewAsync()
+    {
+        await FinalizeAsync();
+
+        if (!IsDraft)
+            ClosePreview();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_saving || _invoice.ID <= 0)
+            return;
+
+        _saving = true;
+
+        try
+        {
+            var result = await InvoiceService.DeleteOrDeactivateAsync(_invoice.ID);
+            if (!result.Successful)
+            {
+                Snackbar.Add(Describe(result, "The invoice could not be deleted."), Severity.Error);
+                return;
+            }
+
+            Snackbar.Add("Invoice deleted.", Severity.Success);
+            Navigation.NavigateTo("/invoices");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Delete failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string Describe(Result result, string fallback)
+        => result.Errors.FirstOrDefault()
+            ?? (!string.IsNullOrWhiteSpace(result.Message) ? result.Message : fallback);
+}
