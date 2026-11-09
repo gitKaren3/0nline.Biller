@@ -28,7 +28,7 @@ else
         <DataAnnotationsValidator />
 
         <MudGrid>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12"  sm="8" lg="7">
                 <MudSelect T="string" Label="Currency" Class="mt-3" ShrinkLabel="true"
                            Value="@model.CurrencyCode" ValueChanged="OnCurrencyChanged"
                            For="@(() => model.CurrencyCode)">
@@ -41,20 +41,17 @@ else
                 </MudSelect>
             </MudItem>
 
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" sm="4" lg="3">
                 <MudNumericField T="decimal?" Label="Default tax rate (%)" Class="mt-3" ShrinkLabel="true"
                                  @bind-Value="model.DefaultTaxRate" For="@(() => model.DefaultTaxRate)"
                                  Min="0" Max="100" Step="0.01m"
-                                 HelperText="Used for new invoice lines; each line may override it." />
+                                />
             </MudItem>
 
-            <MudItem xs="12" md="9">
+            <MudItem xs="12" md="9" lg="6">
                 <ZoneField @bind-CountryIso="_zoneCountryIso"
                            @bind-TimeZoneId="model.TimeZoneId"
-                           CountryLabel="Country"
-                           CountryHelperText="Used to narrow the time zone list; the business address is on My Profile."
-                           TimeZoneLabel="Business time zone"
-                           TimeZoneHelperText="Dates on invoices use this zone; stored values remain UTC." />
+                           Label="Business Location" />
                 <ValidationMessage For="@(() => model.TimeZoneId)" />
             </MudItem>
 
