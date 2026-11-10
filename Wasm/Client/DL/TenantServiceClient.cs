@@ -17,29 +17,17 @@ namespace _0nline.Biller.Wasm.Client.DL
                 => GetAndHandleAsync<Tenant?>($"foruser/{userId}");
 
         public new Task<Result<Tenant>> CreateAsync(Tenant entity)
-        {
-            entity.Tier = null; // Tier should not be updated.
-            return base.CreateAsync(entity); 
-        }
+            => base.CreateAsync(entity);
 
         public new Task<Result<Tenant?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
-        public new Task<Result<Tenant>> UpdateAsync(Tenant entity) 
-        { 
-            entity.Tier = null; // Tier should not be updated.
-            return base.UpdateAsync(entity); 
-        }
+        public new Task<Result<Tenant>> UpdateAsync(Tenant entity)
+            => base.UpdateAsync(entity);
 
         public Task<Result<Tenant>> CreateOrUpdateAsync(Tenant entity)
-        {  
-            entity.Tier = null; // Tier should not be updated.
-            return PostAndHandleAsync<Tenant, Tenant>("createorupdate", entity); 
-        }
+            => PostAndHandleAsync<Tenant, Tenant>("createorupdate", entity);
 
         public Task<Result<TenantRegistrationResult>> RegisterAsync(Tenant entity)
-        { 
-            entity.Tier = null; // Tier should not be updated.
-            return PostAndHandleAsync<Tenant, TenantRegistrationResult>("register", entity);
-        }
+            => PostAndHandleAsync<Tenant, TenantRegistrationResult>("register", entity);
 
         public Task<Result<TenantRegistrationResult>> EnsureAsync(string? currentToken = null)
             => PostAndHandleAsync<object, TenantRegistrationResult>("ensure", new { });

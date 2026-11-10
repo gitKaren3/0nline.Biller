@@ -1,7 +1,7 @@
+using _0nline.Biller.DL.Contract.Enums;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Shared.Location;
-using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme;
 
 namespace _0nline.Biller.DL.Reports
 {
@@ -37,7 +37,7 @@ namespace _0nline.Biller.DL.Reports
                     UnitPrice = line.BilledRateIncl ?? 0m,
                     Tax = line.TotalTax ?? 0m,
                     TaxRate = line.TaxRate ?? 0m,
-                    TaxSchemeName = SchemeName(line.TaxSchemeID),
+                    TaxSchemeName = SchemeName(line.theTaxScheme),
                     TaxNote = line.TaxNote
                 })
                 .ToList();
@@ -53,7 +53,7 @@ namespace _0nline.Biller.DL.Reports
                 CurrencyCode = currency.Code,
                 CurrencySymbol = currency.Symbol,
                 CurrencyMinorUnits = invoice.CurrencyMinorUnits ?? currency.MinorUnits,
-                TaxSchemeName = SchemeName(issuer?.TaxSchemeID),
+                TaxSchemeName = SchemeName(issuer?.theTaxScheme),
                 Issuer = ToParty(issuer, issuerContact),
                 Customer = ToParty(customer, customerContact),
                 Bank = ToBank(bank),
@@ -80,7 +80,7 @@ namespace _0nline.Biller.DL.Reports
                 Name = company.Name ?? string.Empty,
                 Registration = company.Registration,
                 TaxNumber = company.TaxNumber,
-                TaxSchemeName = SchemeName(company.TaxSchemeID),
+                TaxSchemeName = SchemeName(company.theTaxScheme),
                 ContactName = ContactName(contact),
                 Email = contact?.Email ?? company.BillingContact?.Email,
                 Phone = company.PhoneNo ?? contact?.CellPhone?.ToString(),
@@ -95,12 +95,12 @@ namespace _0nline.Biller.DL.Reports
         /// A stable display label for a tax scheme. The enum member names are C#
         /// identifiers (<c>Vat</c>), not what an invoice should print.
         /// </summary>
-        private static string? SchemeName(short? schemeId) => schemeId switch
+        private static string? SchemeName(TaxScheme? scheme) => scheme switch
         {
-            (short)TaxSchemeKind.Vat => "VAT",
-            (short)TaxSchemeKind.Gst => "GST",
-            (short)TaxSchemeKind.SalesTax => "Sales Tax",
-            (short)TaxSchemeKind.Other => "Tax",
+            TaxScheme.Vat => "VAT",
+            TaxScheme.Gst => "GST",
+            TaxScheme.SalesTax => "Sales Tax",
+            TaxScheme.Other => "Tax",
             _ => null
         };
 

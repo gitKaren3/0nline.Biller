@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
-using _0nline.Biller.DL.Contract.Enums;
 
 namespace _0nline.Biller.DL.Contract.Models.db
 {
@@ -48,35 +47,20 @@ namespace _0nline.Biller.DL.Contract.Models.db
             }
         }
 
-        /// <summary>
-        /// The scheme the picker sees. The column is nullable, so this is mostly a
-        /// typed view: it keeps the enum out of the API payload and lets the form bind
-        /// without a sentinel 0.
-        /// </summary>
-        [Editable(false)]
-        [JsonIgnore]
-        public _0nline.Biller.DL.Contract.Enums.TaxScheme? TaxSchemeSelection
-        {
-            get => TaxSchemeID is short id
-                ? (_0nline.Biller.DL.Contract.Enums.TaxScheme)id
-                : null;
-            set => TaxSchemeID = value is null ? null : (short)value;
-        }
-
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             if (!TaxRegistered)
                 yield break;
 
-            if (TaxSchemeID is not short id)
+            if (theTaxScheme is not { } scheme)
             {
                 yield return new ValidationResult(
-                    "Choose a tax scheme.", new[] { nameof(TaxSchemeSelection) });
+                    "Choose a tax scheme.", new[] { nameof(theTaxScheme) });
             }
-            else if (!Enum.IsDefined((_0nline.Biller.DL.Contract.Enums.TaxScheme)id))
+            else if (!Enum.IsDefined(scheme))
             {
                 yield return new ValidationResult(
-                    "Choose a valid tax scheme.", new[] { nameof(TaxSchemeSelection) });
+                    "Choose a valid tax scheme.", new[] { nameof(theTaxScheme) });
             }
 
             if (string.IsNullOrWhiteSpace(CountryCode))

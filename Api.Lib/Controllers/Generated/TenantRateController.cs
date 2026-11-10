@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Contract.Models.db.Lookup;
 
 /// This is auto-generated from a template. 
 /// Do not modify this file directly. Instead, create a partial class in a separate file to add custom logic.

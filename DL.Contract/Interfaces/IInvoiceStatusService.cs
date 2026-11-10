@@ -1,5 +1,5 @@
 using _0nline.Shared.Contract.Interfaces.DL;
-using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Contract.Models.db.Lookup;
 
 namespace _0nline.Biller.DL.Contract.Interfaces
 {

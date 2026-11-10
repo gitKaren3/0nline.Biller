@@ -68,7 +68,7 @@ public class TaxAndCurrencyTests
             .ToList();
 
         Assert.Contains(results, result =>
-            result.MemberNames.Contains(nameof(Company.TaxSchemeSelection)));
+            result.MemberNames.Contains(nameof(Company.theTaxScheme)));
         Assert.Contains(results, result =>
             result.MemberNames.Contains(nameof(Company.CountryCode)));
         Assert.Contains(results, result =>

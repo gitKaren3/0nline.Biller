@@ -1,5 +1,4 @@
 using _0nline.Biller.DL.Contract.Enums;
-using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
@@ -54,15 +53,8 @@ namespace _0nline.Biller.DL.Services
 
         public new Task<Result<Company?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
 
-        /// <summary>
-        /// The tax scheme is a global lookup. Leaving its navigation object on the
-        /// entity would make the generic navigation save try to update the lookup row
-        /// itself, so writes carry only the foreign key.
-        /// </summary>
         private static void PrepareTaxIdentity(Company entity)
         {
-            entity.TaxScheme = null;
-
             if (string.IsNullOrWhiteSpace(entity.CountryCode))
                 return;
 
@@ -77,13 +69,13 @@ namespace _0nline.Biller.DL.Services
         /// </summary>
         private string? ValidateTaxIdentity(Company entity)
         {
-            if (entity.TaxSchemeID is not short schemeId)
+            if (entity.theTaxScheme is not { } scheme)
             {
                 entity.TaxNumber = null;
                 return null;
             }
 
-            if (!Enum.IsDefined((TaxSchemeKind)schemeId))
+            if (!Enum.IsDefined(scheme))
                 return "Choose a valid tax scheme.";
 
             // Legacy rows only carry the country name. Resolve the ISO code so the

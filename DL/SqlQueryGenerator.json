@@ -2,6 +2,7 @@
   "OutputDir": "Providers/Generated",
   "Namespace": "_0nline.Biller.DL.Providers",
   "ModelsNamespace": "_0nline.Biller.DL.Contract.Models.db",
+  "LookupNamespace": "_0nline.Biller.DL.Contract.Models.db.Lookup",
   "Scope": "public",
   "BaseClass": "SqlQueryProvider",
   "ConnectionString": "host=localhost port=5432 dbname=0nline.Biller user=pilot password=hermes",

@@ -13,6 +13,7 @@ os.makedirs(output_dir, exist_ok=True)
 
 ns = config["Namespace"]
 modelsns = config["ModelsNamespace"]
+lookupns = config.get("LookupNamespace", modelsns + ".Lookup")
 connection_string = config["ConnectionString"]
 scope = config["Scope"]
 Depluralize = config.get("Depluralize", "false").lower() == "true"
@@ -167,6 +168,7 @@ for table_name, table_schema in tables:
 
     class_code = []
     class_code.append(f"using {modelsns};")
+    class_code.append(f"using {lookupns};")
     class_code.append("using _0nline.Shared.Db.Contract.Models;")
     class_code.append("using _0nline.Shared.Db.Service;")
     class_code.append("")

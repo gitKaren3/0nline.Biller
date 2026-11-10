@@ -1,6 +1,6 @@
 @page "/invoice/{Id:int}"
 
-@using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus
+@using _0nline.Biller.DL.Contract.Enums
 
 @inject IInvoiceService InvoiceService
 @inject IContactService ContactService
@@ -328,35 +328,35 @@
     private bool _previewVisible;
     private string? _previewUrl;
 
-    private bool IsDraft => _invoice.InvoiceStatusID == 0 || _invoice.InvoiceStatusID == (short)InvoiceStatusKind.Draft;
+    private bool IsDraft => _invoice.theInvoiceStatus == default || _invoice.theInvoiceStatus == InvoiceStatus.Draft;
 
-    private string StatusLabel => _invoice.InvoiceStatusID switch
+    private string StatusLabel => _invoice.theInvoiceStatus switch
     {
-        (short)InvoiceStatusKind.Finalized => "Finalized",
-        (short)InvoiceStatusKind.Issued => "Issued",
-        (short)InvoiceStatusKind.Viewed => "Viewed",
-        (short)InvoiceStatusKind.Paid => "Paid",
-        (short)InvoiceStatusKind.Cancelled => "Cancelled",
+        InvoiceStatus.Finalized => "Finalized",
+        InvoiceStatus.Issued => "Issued",
+        InvoiceStatus.Viewed => "Viewed",
+        InvoiceStatus.Paid => "Paid",
+        InvoiceStatus.Cancelled => "Cancelled",
         _ => "Draft"
     };
 
-    private string StatusIcon => _invoice.InvoiceStatusID switch
+    private string StatusIcon => _invoice.theInvoiceStatus switch
     {
-        (short)InvoiceStatusKind.Finalized => Icons.Material.Filled.Lock,
-        (short)InvoiceStatusKind.Issued => Icons.Material.Filled.Send,
-        (short)InvoiceStatusKind.Viewed => Icons.Material.Filled.Visibility,
-        (short)InvoiceStatusKind.Paid => Icons.Material.Filled.CheckCircle,
-        (short)InvoiceStatusKind.Cancelled => Icons.Material.Filled.Cancel,
+        InvoiceStatus.Finalized => Icons.Material.Filled.Lock,
+        InvoiceStatus.Issued => Icons.Material.Filled.Send,
+        InvoiceStatus.Viewed => Icons.Material.Filled.Visibility,
+        InvoiceStatus.Paid => Icons.Material.Filled.CheckCircle,
+        InvoiceStatus.Cancelled => Icons.Material.Filled.Cancel,
         _ => Icons.Material.Filled.EditNote
     };
 
-    private Color StatusColor => _invoice.InvoiceStatusID switch
+    private Color StatusColor => _invoice.theInvoiceStatus switch
     {
-        (short)InvoiceStatusKind.Finalized => Color.Info,
-        (short)InvoiceStatusKind.Issued => Color.Primary,
-        (short)InvoiceStatusKind.Viewed => Color.Info,
-        (short)InvoiceStatusKind.Paid => Color.Success,
-        (short)InvoiceStatusKind.Cancelled => Color.Error,
+        InvoiceStatus.Finalized => Color.Info,
+        InvoiceStatus.Issued => Color.Primary,
+        InvoiceStatus.Viewed => Color.Info,
+        InvoiceStatus.Paid => Color.Success,
+        InvoiceStatus.Cancelled => Color.Error,
         _ => Color.Default
     };
 

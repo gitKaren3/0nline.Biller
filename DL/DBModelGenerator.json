@@ -7,5 +7,7 @@
   "Depluralize": "false",
   "EnumTables": ["Tier", "InvoiceStatus", "TaxScheme"],
   "EnumOutputDir": "../DL.Contract/Enums/Generated",
-  "EnumNamespace": "_0nline.Biller.DL.Contract.Enums"
+  "EnumNamespace": "_0nline.Biller.DL.Contract.Enums",
+  "LookupOutputDir": "../DL.Contract/Models/db/Lookup/Generated",
+  "LookupNamespace": "_0nline.Biller.DL.Contract.Models.db.Lookup"
 }

@@ -1,7 +1,6 @@
 @inject IImageService ImageService
 @inject ICountryCatalog CountryCatalog
 @using _0nline.Biller.DL.Contract.Enums
-@using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme
 
 
 @* Reusable company form — owns the company fields, the logo lifecycle (optional), *@
@@ -34,12 +33,12 @@
             @if (Model.TaxRegistered)
             {
                 <MudItem xs="12" sm="5" md="3" lg="2"  Class="mt-3">
-                    <MudSelect T="TaxSchemeKind?" Label="Tax scheme" Class="mt-3" ShrinkLabel="true"
-                               @bind-Value="Model.TaxSchemeSelection"
-                               For="@(() => Model.TaxSchemeSelection)">
-                        @foreach (var scheme in Enum.GetValues<TaxSchemeKind>())
+                    <MudSelect T="TaxScheme?" Label="Tax scheme" Class="mt-3" ShrinkLabel="true"
+                               @bind-Value="Model.theTaxScheme"
+                               For="@(() => Model.theTaxScheme)">
+                        @foreach (var scheme in Enum.GetValues<TaxScheme>())
                         {
-                            <MudSelectItem T="TaxSchemeKind?" Value="@scheme">@SchemeLabel(scheme)</MudSelectItem>
+                            <MudSelectItem T="TaxScheme?" Value="@scheme">@SchemeLabel(scheme)</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -269,11 +268,11 @@
         => CountryCatalog.FindByIso(Model.CountryCode)?.DialCode
            ?? CountryCatalog.FindByName(Model.AddressCountry)?.DialCode;
 
-    private static string SchemeLabel(TaxSchemeKind scheme) => scheme switch
+    private static string SchemeLabel(TaxScheme scheme) => scheme switch
     {
-        TaxSchemeKind.Vat => "VAT",
-        TaxSchemeKind.Gst => "GST",
-        TaxSchemeKind.SalesTax => "Sales Tax",
+        TaxScheme.Vat => "VAT",
+        TaxScheme.Gst => "GST",
+        TaxScheme.SalesTax => "Sales Tax",
         _ => "Other"
     };
 

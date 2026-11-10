@@ -1,3 +1,4 @@
+using _0nline.Biller.DL.Contract.Enums;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
@@ -56,10 +57,9 @@ namespace _0nline.Biller.DL.Services
             entity.CompanyID = null;
             entity.Contact = null;
             entity.Company = null;
-            entity.Tier = null;
 
             // Never take the tier from the body: a caller could self-upgrade.
-            entity.TierID = await GetFreeTierIdAsync();
+            entity.theTier = await GetFreeTierAsync();
 
             if (entity.UserId is long userId)
             {
@@ -530,7 +530,7 @@ namespace _0nline.Biller.DL.Services
             throw new UnauthorizedAccessException("The signed-in user could not be resolved.");
         }
 
-        private async Task<short> GetFreeTierIdAsync()
+        private async Task<Tier> GetFreeTierAsync()
         {
             var result = await _tierService.GetAllAsync();
             var tier = result.Value?
@@ -542,7 +542,7 @@ namespace _0nline.Biller.DL.Services
             if (tier == null)
                 throw new InvalidOperationException("No active tier is configured.");
 
-            return tier.ID;
+            return (Tier)tier.ID;
         }
 
         private static async Task<bool> BelongsToTenantAsync(

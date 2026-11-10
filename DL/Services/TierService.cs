@@ -1,6 +1,6 @@
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Interfaces;
-using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Contract.Models.db.Lookup;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;

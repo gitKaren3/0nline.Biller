@@ -88,6 +88,7 @@ for file in os.listdir(interface_folder_path):
     sb.append("using Microsoft.AspNetCore.Mvc;")
     sb.append(f"using _0nline.{App}.DL.Contract.Interfaces;")
     sb.append(f"using _0nline.{App}.DL.Contract.Models.db;")
+    sb.append(f"using _0nline.{App}.DL.Contract.Models.db.Lookup;")
     sb.append("""
 /// This is auto-generated from a template. 
 /// Do not modify this file directly. Instead, create a partial class in a separate file to add custom logic.""")

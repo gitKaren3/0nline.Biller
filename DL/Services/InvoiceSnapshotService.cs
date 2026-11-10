@@ -1,3 +1,4 @@
+using _0nline.Biller.DL.Contract.Enums;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
@@ -10,7 +11,6 @@ using _0nline.Shared.Db.Contract.Interfaces;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus;
 
 namespace _0nline.Biller.DL.Services
 {
@@ -58,11 +58,11 @@ namespace _0nline.Biller.DL.Services
 
             // Sending is a post-finalize action. A draft has not been checked yet;
             // a cancelled invoice must not be put in front of a customer again.
-            if (invoice.InvoiceStatusID == (short)InvoiceStatusKind.Draft)
+            if (invoice.theInvoiceStatus == InvoiceStatus.Draft)
                 return Result<InvoiceSnapshot>.Failure(
                     ErrorCode.Conflict, "Finalize the invoice before sending it.");
 
-            if (invoice.InvoiceStatusID == (short)InvoiceStatusKind.Cancelled)
+            if (invoice.theInvoiceStatus == InvoiceStatus.Cancelled)
                 return Result<InvoiceSnapshot>.Failure(
                     ErrorCode.Conflict, "A cancelled invoice cannot be sent.");
 
@@ -248,7 +248,7 @@ namespace _0nline.Biller.DL.Services
         /// </summary>
         private async Task MarkIssuedAsync(Invoice invoice)
         {
-            if (invoice.InvoiceStatusID != (short)InvoiceStatusKind.Finalized)
+            if (invoice.theInvoiceStatus != InvoiceStatus.Finalized)
                 return;
 
             using var conn = Connection;
@@ -259,13 +259,13 @@ namespace _0nline.Biller.DL.Services
                     AND ""InvoiceStatusID"" = @Finalized",
                 new
                 {
-                    Issued = (short)InvoiceStatusKind.Issued,
-                    Finalized = (short)InvoiceStatusKind.Finalized,
+                    Issued = InvoiceStatus.Issued,
+                    Finalized = InvoiceStatus.Finalized,
                     Id = invoice.ID,
                     TenantId = invoice.TenantID
                 });
 
-            invoice.InvoiceStatusID = (short)InvoiceStatusKind.Issued;
+            invoice.theInvoiceStatus = InvoiceStatus.Issued;
         }
     }
 }

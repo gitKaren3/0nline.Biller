@@ -1,7 +1,7 @@
 ﻿using _0nline.Shared.Contract.Models;
 using Microsoft.Extensions.Options;
 using _0nline.Biller.DL.Contract.Interfaces;
-using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Contract.Models.db.Lookup;
 
 namespace _0nline.Biller.Wasm.Client.DL
 {
