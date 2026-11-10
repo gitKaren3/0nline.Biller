@@ -1,4 +1,5 @@
 @using _0nline.Biller.DL.Contract.Models.db
+@using _0nline.Biller.DL.Contract.Numbering
 @using _0nline.Shared.Location
 @using _0nline.Shared.Location.Interfaces
 @using _0nline.Shared.Location.Models
@@ -55,26 +56,60 @@ else
                 <ValidationMessage For="@(() => model.TimeZoneId)" />
             </MudItem>
 
-            <MudItem xs="12" sm="6" lg="3">
-                <MudTextField Label="Invoice number prefix" Class="mt-3" ShrinkLabel="true"
-                              @bind-Value="model.InvoiceNumberPrefix"
-                              For="@(() => model.InvoiceNumberPrefix)"
-                              HelperText="Printed before the number, e.g. INV-" />
-            </MudItem>
+            <MudItem xs="12" Class="mt-4">
+                <MudGrid>
+                    <MudItem xs="12" sm="7" lg="5">
+                        <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
+                            <MudTextField Label="Invoice number format" ShrinkLabel="true"
+                                          id="invoice-number-format"
+                                          @bind-Value="model.InvoiceNumberFormat"
+                                          For="@(() => model.InvoiceNumberFormat)"
+                                          Immediate="true"
+                                          OnBlur="OnFormatBlur"
+                                          HelperText="@FormatHelperText" />
+                            <MudTooltip Placement="Placement.Right" Arrow="true"
+                                        ShowOnHover="true" ShowOnFocus="true" ShowOnClick="true">
+                                <ChildContent>
+                                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small"
+                                             Color="Color.Info" Class="mt-4" Style="cursor: pointer;"
+                                             aria-label="Format help" />
+                                </ChildContent>
+                                <TooltipContent>
+                                    <MudStack Spacing="1" Style="max-width: 340px;">
+                                        <MudText Typo="Typo.body2"><strong>Invoice number format</strong></MudText>
+                                        <MudText Typo="Typo.caption">
+                                            Literal text around one {n}. A run of zeros after a colon sets
+                                            the minimum width; a number that outgrows it widens rather
+                                            than truncating.
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Class="pa-2"
+                                                 Style="font-family: monospace; white-space: pre; background: var(--mud-palette-background-grey); border-radius: 4px;">@FormatExamples</MudText>
+                                        <MudText Typo="Typo.caption">
+                                            A year token prints the invoice's year; it does not restart the
+                                            sequence. Everything outside a token is printed as typed, and the
+                                            format may not exceed 30 characters.
+                                        </MudText>
+                                    </MudStack>
+                                </TooltipContent>
+                            </MudTooltip>
+                        </MudStack>
+                    </MudItem>
 
-            <MudItem xs="12" sm="6" lg="3">
-                <MudNumericField T="int?" Label="Next invoice number" Class="mt-3" ShrinkLabel="true"
-                                 @bind-Value="model.NextInvoiceNumber"
-                                 For="@(() => model.NextInvoiceNumber)"
-                                 Min="1"
-                                 HelperText="The number the next invoice will use." />
+                    <MudItem xs="12" sm="5" lg="3">
+                        <MudNumericField T="int?" Label="Next invoice number" ShrinkLabel="true"
+                                         @bind-Value="model.NextInvoiceNumber"
+                                         For="@(() => model.NextInvoiceNumber)"
+                                         Min="1"
+                                         HelperText="The number the next invoice will use." />
+                    </MudItem>
+                </MudGrid>
             </MudItem>
 
             <MudItem xs="12">
                 <MudText Typo="Typo.caption" Class="mt-2">
                     Currency is copied onto each new invoice, so changing it here does not
-                    reinterpret invoices already issued. Invoice numbers increment
-                    automatically; raise the next number if you have already invoiced elsewhere.
+                    reinterpret invoices already issued. A number typed on an invoice moves
+                    the sequence on; raise the next number if you have already invoiced elsewhere.
                 </MudText>
             </MudItem>
         </MudGrid>
@@ -107,6 +142,18 @@ else
     private string? _loadError;
     private string? _zoneCountryIso;
 
+    /// <summary>The format as it was loaded or last saved; a blank edit restores it.</summary>
+    private string _originalFormat = InvoiceNumberFormat.DefaultFormat;
+
+    /// <summary>Shown in the field's help bubble, not as helper text.</summary>
+    private const string FormatExamples =
+        "{n}              → 84\n" +
+        "{n:00000}        → 00084\n" +
+        "#{n:00000}       → #00084\n" +
+        "INV-{n:0000}     → INV-0084\n" +
+        "2026/{n:0000}    → 2026/0084\n" +
+        "{yyyy}/{n:0000}  → 2026/0084";
+
     protected override async Task OnInitializedAsync()
     {
         if (Model is null)
@@ -124,6 +171,10 @@ else
             Model = loaded;
         }
 
+        _originalFormat = string.IsNullOrWhiteSpace(Model.InvoiceNumberFormat)
+            ? InvoiceNumberFormat.DefaultFormat
+            : Model.InvoiceNumberFormat!;
+
         _zoneCountryIso = TimeZones.FindCountry(Model.TimeZoneId);
         Model.CurrencyMinorUnits ??= (short)(Currencies.Find(Model.CurrencyCode)?.MinorUnits ?? 2);
         SettingsState.Set(Model);
@@ -134,6 +185,39 @@ else
     {
         Model!.CurrencyCode = code;
         Model.CurrencyMinorUnits = (short)(Currencies.Find(code)?.MinorUnits ?? 2);
+    }
+
+    /// <summary>
+    /// The field's helper text: why the format is unusable while it is being typed, or the
+    /// number the next invoice will actually print. The examples live in the help bubble.
+    /// </summary>
+    private string FormatHelperText
+    {
+        get
+        {
+            if (!InvoiceNumberFormat.TryParse(Model?.InvoiceNumberFormat, out var format, out _))
+                return "Invalid format";
+
+            // The year token is the only part that needs a date. A new invoice defaults to
+            // today in the tenant's zone; the server uses the invoice's own date.
+            return Model?.NextInvoiceNumber is int next
+                ? $"Next: {format!.Render(next, DateTime.Today)}"
+                : "Valid format";
+        }
+    }
+
+    /// <summary>
+    /// A blank format is not a choice, so leaving the field empty restores what was there
+    /// (or the default) instead of letting an empty value reach the save.
+    /// </summary>
+    private void OnFormatBlur(FocusEventArgs _)
+    {
+        if (Model is null || !string.IsNullOrWhiteSpace(Model.InvoiceNumberFormat))
+            return;
+
+        Model.InvoiceNumberFormat = string.IsNullOrWhiteSpace(_originalFormat)
+            ? InvoiceNumberFormat.DefaultFormat
+            : _originalFormat;
     }
 
     private async Task SaveAsync()
@@ -148,6 +232,9 @@ else
             if (result.Successful && result.Value is TenantSetting saved)
             {
                 Model = saved;
+                _originalFormat = string.IsNullOrWhiteSpace(saved.InvoiceNumberFormat)
+                    ? InvoiceNumberFormat.DefaultFormat
+                    : saved.InvoiceNumberFormat!;
                 SettingsState.Set(saved);
                 Snackbar.Add("Billing settings saved.", Severity.Success);
                 await OnSaved.InvokeAsync(saved);

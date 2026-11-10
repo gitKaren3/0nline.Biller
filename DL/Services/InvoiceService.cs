@@ -2,6 +2,7 @@
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Contract.Numbering;
 using _0nline.Biller.DL.Reports;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Contract;
@@ -73,11 +74,13 @@ namespace _0nline.Biller.DL.Services
                 return Result<Invoice>.Failure(
                     ErrorCode.ValidationFailed, "Add at least one line before finalizing.");
 
+            // Create always numbers an invoice, so a blank one is a legacy row or a
+            // deliberate clear. Do not invent a number here: that would bypass the
+            // tenant's format and the counter.
             if (string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
-            {
-                invoice.InvoiceNumber =
-                    $"INV-{invoice.InvoiceDate?.Year ?? DateTime.Today.Year}-{invoice.ID:D5}";
-            }
+                return Result<Invoice>.Failure(
+                    ErrorCode.ValidationFailed,
+                    "This invoice has no number. Give it one before finalizing.");
 
             invoice.theInvoiceStatus = InvoiceStatus.Finalized;
             ClearNavigation(invoice);
@@ -97,6 +100,96 @@ namespace _0nline.Biller.DL.Services
                 return Result<byte[]>.None();
 
             return await _pdfService.RenderAsync(invoice);
+        }
+
+        /// <summary>
+        /// The number the next invoice will draw, formatted, without consuming it. The
+        /// counter can lag behind what has been issued (a reset, or numbers typed by
+        /// hand), so the peek skips numbers already on an invoice instead of handing the
+        /// editor a clash it could have avoided.
+        /// </summary>
+        public async Task<Result<InvoiceNumberPreview>> PeekInvoiceNumberAsync()
+        {
+            var settings = await _tenantSettings.GetForTenantAsync();
+            if (!settings.Successful || settings.Value is not TenantSetting tenantSetting)
+            {
+                return Result<InvoiceNumberPreview>.Failure(
+                    ErrorCode.ValidationFailed,
+                    settings.Errors.FirstOrDefault()
+                        ?? "Complete your billing settings before numbering an invoice.");
+            }
+
+            if (!InvoiceNumberFormat.TryParse(
+                    tenantSetting.InvoiceNumberFormat, out var parsed, out var formatError))
+            {
+                return Result<InvoiceNumberPreview>.Failure(
+                    ErrorCode.ValidationFailed,
+                    formatError ?? "The invoice number format is not usable.");
+            }
+
+            var format = parsed!;
+            var counter = tenantSetting.NextInvoiceNumber is int next && next > 0 ? next : 1;
+            var invoiceDate = TodayIn(tenantSetting.TimeZoneId);
+
+            using var conn = Connection;
+            var tenantId = RequireTenantId();
+
+            const int batchSize = 100;
+            for (var batch = 0; batch < 10; batch++)
+            {
+                var first = counter + batch * batchSize;
+                var candidates = Enumerable.Range(first, batchSize)
+                    .Select(number => format.Render(number, invoiceDate))
+                    .ToArray();
+
+                var issued = (await conn.QueryAsync<string>(
+                    $@"SELECT {Quoted("InvoiceNumber")}
+                         FROM {Quoted("Invoice")}
+                        WHERE {Quoted("TenantID")} = @TenantId
+                          AND {Quoted("InvoiceNumber")} = ANY(@Candidates)",
+                    new { TenantId = tenantId, Candidates = candidates }))
+                    .ToHashSet(StringComparer.Ordinal);
+
+                for (var offset = 0; offset < candidates.Length; offset++)
+                {
+                    if (issued.Contains(candidates[offset]))
+                        continue;
+
+                    return Result<InvoiceNumberPreview>.Success(new InvoiceNumberPreview
+                    {
+                        Number = candidates[offset],
+                        Counter = first + offset,
+                        Format = format.Text
+                    });
+                }
+            }
+
+            return Result<InvoiceNumberPreview>.Failure(
+                ErrorCode.Conflict, "A free invoice number could not be found.");
+        }
+
+        /// <summary>
+        /// Whether a number is already used in this tenant. Advisory: the save re-checks,
+        /// and the unique index is the guarantee. An invoice's own number is not a clash.
+        /// </summary>
+        public async Task<Result<bool>> InvoiceNumberExistsAsync(
+            string? number, int excludeInvoiceId = 0)
+        {
+            var trimmed = number?.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+                return Result<bool>.Success(false);
+
+            var tenantId = RequireTenantId();
+
+            using var conn = Connection;
+            var found = await conn.ExecuteScalarAsync<int?>(
+                $@"SELECT 1 FROM {Quoted("Invoice")}
+                    WHERE {Quoted("TenantID")} = @TenantId
+                      AND {Quoted("InvoiceNumber")} = @Number
+                      AND {Quoted("ID")} <> @ExcludeId",
+                new { TenantId = tenantId, Number = trimmed, ExcludeId = excludeInvoiceId });
+
+            return Result<bool>.Success(found is not null);
         }
 
         /// <summary>
@@ -137,9 +230,13 @@ namespace _0nline.Biller.DL.Services
             try
             {
                 if (autoNumber)
-                    invoice.InvoiceNumber = await AllocateInvoiceNumberAsync(conn, tran);
+                    invoice.InvoiceNumber = await AllocateInvoiceNumberAsync(
+                        conn, tran, invoice.InvoiceDate!.Value);
 
                 await InsertAsync(invoice, invoiceProperties, conn, tran);
+
+                if (!autoNumber)
+                    await AdvanceInvoiceCounterAsync(conn, tran, invoice.InvoiceNumber);
 
                 foreach (var line in lines)
                 {
@@ -156,7 +253,7 @@ namespace _0nline.Biller.DL.Services
                 tran.Rollback();
                 return Result<Invoice>.Failure(
                     ErrorCode.Conflict,
-                    $"Invoice number {invoice.InvoiceNumber} is already used.");
+                    $"Invoice number {invoice.InvoiceNumber} is already in use.");
             }
             catch
             {
@@ -244,6 +341,8 @@ namespace _0nline.Biller.DL.Services
                         tran);
                 }
 
+                await AdvanceInvoiceCounterAsync(conn, tran, invoice.InvoiceNumber);
+
                 tran.Commit();
             }
             catch
@@ -326,29 +425,77 @@ namespace _0nline.Biller.DL.Services
         }
 
         /// <summary>
-        /// Draws the next number from the tenant's counter and increments it in the same
-        /// statement, so two concurrent creates cannot receive the same number. Runs in
-        /// the caller's transaction: a failed create rolls the number back too.
+        /// Draws the next number from the tenant's counter, formats it and advances the
+        /// counter in one statement, so two concurrent creates cannot receive the same
+        /// number. Runs in the caller's transaction: a failed create rolls the number
+        /// back too. A counter that has fallen behind numbers already issued (the tenant
+        /// may reset it, or type numbers by hand) advances again instead of clashing.
         /// </summary>
         private async Task<string> AllocateInvoiceNumberAsync(
-            System.Data.IDbConnection conn, System.Data.IDbTransaction tran)
+            System.Data.IDbConnection conn, System.Data.IDbTransaction tran, DateTime invoiceDate)
         {
             var tenantId = RequireTenantId();
 
-            var number = await conn.ExecuteScalarAsync<string?>(
-                @"UPDATE ""TenantSetting""
-                     SET ""NextInvoiceNumber"" = COALESCE(""NextInvoiceNumber"", 1) + 1
-                   WHERE ""TenantID"" = @TenantId
-               RETURNING COALESCE(""InvoiceNumberPrefix"", '')
-                         || (COALESCE(""NextInvoiceNumber"", 2) - 1)::text",
-                new { TenantId = tenantId },
+            for (var attempt = 0; attempt < 1000; attempt++)
+            {
+                var claimed = await conn.QuerySingleOrDefaultAsync<InvoiceNumberAllocation>(
+                    $@"UPDATE {Quoted("TenantSetting")}
+                          SET {Quoted("NextInvoiceNumber")} = COALESCE({Quoted("NextInvoiceNumber")}, 1) + 1
+                        WHERE {Quoted("TenantID")} = @TenantId
+                    RETURNING {Quoted("InvoiceNumberFormat")} AS ""Format"",
+                              COALESCE({Quoted("NextInvoiceNumber")}, 2) - 1 AS ""Number""",
+                    new { TenantId = tenantId },
+                    tran);
+
+                if (claimed is null)
+                    throw new InvalidOperationException(
+                        "Billing settings are required to number an invoice.");
+
+                if (!InvoiceNumberFormat.TryParse(claimed.Format, out var format, out var error))
+                    throw new InvalidOperationException(
+                        error ?? "The invoice number format is not usable.");
+
+                var number = format!.Render(claimed.Number, invoiceDate);
+
+                var taken = await conn.ExecuteScalarAsync<int?>(
+                    $@"SELECT 1 FROM {Quoted("Invoice")}
+                        WHERE {Quoted("TenantID")} = @TenantId
+                          AND {Quoted("InvoiceNumber")} = @Number",
+                    new { TenantId = tenantId, Number = number },
+                    tran);
+
+                if (taken is null)
+                    return number;
+            }
+
+            throw new InvalidOperationException("A free invoice number could not be found.");
+        }
+
+        /// <summary>
+        /// A number the tenant supplied moves the counter with it, so the next automatic
+        /// number continues after it. A number below the counter is kept as typed and
+        /// leaves the counter alone: reusing a live number is the unique index's job.
+        /// </summary>
+        private async Task AdvanceInvoiceCounterAsync(
+            System.Data.IDbConnection conn, System.Data.IDbTransaction tran, string? invoiceNumber)
+        {
+            if (!InvoiceNumberFormat.TryReadNumber(invoiceNumber, out var used) || used >= int.MaxValue)
+                return;
+
+            await conn.ExecuteAsync(
+                $@"UPDATE {Quoted("TenantSetting")}
+                      SET {Quoted("NextInvoiceNumber")} =
+                          GREATEST(COALESCE({Quoted("NextInvoiceNumber")}, 1), @Next)
+                    WHERE {Quoted("TenantID")} = @TenantId",
+                new { Next = used + 1, TenantId = RequireTenantId() },
                 tran);
+        }
 
-            if (string.IsNullOrWhiteSpace(number))
-                throw new InvalidOperationException(
-                    "Billing settings are required to number an invoice.");
-
-            return number;
+        /// <summary>The row an allocation claim returns.</summary>
+        private sealed class InvoiceNumberAllocation
+        {
+            public string? Format { get; set; }
+            public int Number { get; set; }
         }
 
         private async Task<string?> ValidateAsync(Invoice invoice, InvoiceDefaults defaults)

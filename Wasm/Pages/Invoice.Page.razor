@@ -84,9 +84,23 @@
                         <MudStack Row="true" Spacing="4" Class="flex-wrap">
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                                 <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Invoice number</MudText>
-                                <MudTextField T="string" @bind-Value="_invoice.InvoiceNumber" Placeholder="Auto"
+                                <MudTextField T="string" Placeholder="Auto"
+                                              id="invoice-number"
+                                              Value="_invoice.InvoiceNumber"
+                                              ValueChanged="OnNumberChanged"
                                               Variant="Variant.Outlined" Margin="Margin.Dense"
-                                              Disabled="@(!IsDraft)" Style="min-width: 150px;" />
+                                              Disabled="@(!IsDraft)"
+                                              Error="@(_numberError is not null)"
+                                              ErrorText="@_numberError"
+                                              OnBlur="CheckNumberAsync"
+                                              Style="min-width: 150px;" />
+                                @if (IsDraft)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small"
+                                                   title="Use the next number"
+                                                   Disabled="@_numberChecking"
+                                                   OnClick="RegenerateNumberAsync" />
+                                }
                             </MudStack>
 
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
@@ -130,6 +144,7 @@
 
                         <MudItem xs="12" sm="6" lg="4">
                             <MudTextField Label="Payment reference (optional)" ShrinkLabel="true"
+                                          id="payment-ref"
                                           Disabled="@(!IsDraft)"
                                           @bind-Value="_invoice.PaymentRef" />
                         </MudItem>
@@ -328,6 +343,10 @@
     private bool _previewVisible;
     private string? _previewUrl;
 
+    // The number field annotates a clash in place; the save stays the guarantee.
+    private string? _numberError;
+    private bool _numberChecking;
+
     private bool IsDraft => _invoice.theInvoiceStatus == default || _invoice.theInvoiceStatus == InvoiceStatus.Draft;
 
     private string StatusLabel => _invoice.theInvoiceStatus switch
@@ -384,6 +403,7 @@
         _loadError = null;
         _previewVisible = false;
         _previewUrl = null;
+        _numberError = null;
 
         try
         {
@@ -408,6 +428,8 @@
                     InvoiceDate = DateTime.Today,
                     InvoiceLines = new() { new InvoiceLine() }
                 };
+
+                await PrefillNumberAsync();
             }
 
             _loadedId = Id;
@@ -420,6 +442,89 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// A new invoice shows the number it is about to be given, so the number is visible
+    /// before the invoice is saved. Nothing is consumed: the save is what pins it, and a
+    /// clash comes back as an error on the field.
+    /// </summary>
+    private async Task PrefillNumberAsync()
+    {
+        var result = await InvoiceService.PeekInvoiceNumberAsync();
+        if (!result.Successful || result.Value is not InvoiceNumberPreview preview)
+            return;
+
+        _invoice.InvoiceNumber = preview.Number;
+        _invoice.PaymentRef = preview.Number;
+    }
+
+    /// <summary>
+    /// The payment reference is almost always the invoice number, so it follows the
+    /// number. Editing the reference afterwards is still allowed; changing the number
+    /// again brings the two back into line.
+    /// </summary>
+    private void OnNumberChanged(string? number)
+    {
+        _invoice.InvoiceNumber = number;
+        _invoice.PaymentRef = number?.Trim();
+    }
+
+    /// <summary>Re-reads the next number and puts it in the field.</summary>
+    private async Task RegenerateNumberAsync()
+    {
+        if (_numberChecking || !IsDraft)
+            return;
+
+        _numberChecking = true;
+
+        try
+        {
+            var result = await InvoiceService.PeekInvoiceNumberAsync();
+            if (!result.Successful || result.Value is not InvoiceNumberPreview preview)
+            {
+                Snackbar.Add(Describe(result, "The next number could not be read."), Severity.Warning);
+                return;
+            }
+
+            _invoice.InvoiceNumber = preview.Number;
+            _invoice.PaymentRef = preview.Number;
+            _numberError = null;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"The next number could not be read: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _numberChecking = false;
+        }
+    }
+
+    /// <summary>
+    /// Advisory check on blur, so a clash shows on the field before the save. It cannot
+    /// be a guarantee: another user can take the number between this call and the save.
+    /// </summary>
+    private async Task CheckNumberAsync(FocusEventArgs _)
+    {
+        _numberError = null;
+
+        var number = _invoice.InvoiceNumber?.Trim();
+        if (string.IsNullOrEmpty(number) || !IsDraft)
+            return;
+
+        try
+        {
+            var result = await InvoiceService.InvoiceNumberExistsAsync(number, _invoice.ID);
+
+            // The check is advisory: a failure to reach it must not block the field.
+            if (result.Successful && result.Value)
+                _numberError = $"{number} is already used.";
+        }
+        catch
+        {
+            // As above: the save is the guarantee, not this call.
         }
     }
 
@@ -579,12 +684,17 @@
 
             if (!saved.Successful || saved.Value is not Invoice invoice)
             {
+                // Annotate a clash even when the server reported it as a validation
+                // failure rather than a conflict; the field is where it belongs.
+                await CheckNumberAsync(new FocusEventArgs());
+
                 Snackbar.Add(Describe(saved, "The invoice could not be saved."), Severity.Error);
                 return;
             }
 
             _invoice = invoice;
             _invoice.InvoiceLines = invoice.InvoiceLines ?? _invoice.InvoiceLines;
+            _numberError = null;
             _loadedId = invoice.ID;
             ApplyCurrency();
 

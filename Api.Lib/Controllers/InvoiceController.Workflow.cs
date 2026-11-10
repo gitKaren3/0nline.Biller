@@ -43,5 +43,29 @@ namespace _0nline.Biller.Api.Lib
             Response.Headers.CacheControl = "no-store";
             return File(result.Value, "application/pdf");
         }
+
+        /// <summary>
+        /// The number the next invoice would draw, without consuming it, so the editor
+        /// can show it before the invoice is saved.
+        /// </summary>
+        [HttpGet("next-number")]
+        public async Task<IActionResult> NextNumber()
+        {
+            var result = await BaseService.PeekInvoiceNumberAsync();
+            return result.Successful ? Ok(result) : BadRequest(result);
+        }
+
+        /// <summary>
+        /// Whether a number is already used. Advisory: the save is the guarantee.
+        /// <paramref name="id"/> is the invoice being edited, so its own number is not
+        /// reported as a clash.
+        /// </summary>
+        [HttpGet("number-exists")]
+        public async Task<IActionResult> NumberExists(
+            [FromQuery] string? number, [FromQuery] int id = 0)
+        {
+            var result = await BaseService.InvoiceNumberExistsAsync(number, id);
+            return Ok(result);
+        }
     }
 }

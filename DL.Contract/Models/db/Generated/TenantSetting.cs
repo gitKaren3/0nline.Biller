@@ -40,12 +40,12 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         [Editable(true)]
-        [StringLength(20, ErrorMessage = "Max 20 characters")]
-        public string? InvoiceNumberPrefix { get; set; }
+        public int? NextInvoiceNumber { get; set; }
 
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         [Editable(true)]
-        public int? NextInvoiceNumber { get; set; }
+        [StringLength(30, ErrorMessage = "Max 30 characters")]
+        public string? InvoiceNumberFormat { get; set; }
 
         // Navigation properties
         public Tenant? Tenant { get; set; }

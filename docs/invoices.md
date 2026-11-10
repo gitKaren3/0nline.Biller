@@ -29,6 +29,8 @@ Draft ──finalize──► Finalized ──send──► Issued
 | `PUT api/biller/invoice` | Update a draft and reconcile its lines (see below). |
 | `POST api/biller/invoice/{id}/finalize` | Draft → Finalized. |
 | `GET api/biller/invoice/{id}/preview.pdf` | Render the saved invoice. No snapshot, no access count. |
+| `GET api/biller/invoice/next-number` | The number the next invoice will draw. Does **not** consume it. |
+| `GET api/biller/invoice/number-exists?number=…&id=…` | Whether the number is already used. Advisory; the save is the guarantee. |
 | `POST api/biller/invoicesnapshot/invoice/{id}[?regenerate=true]` | Create/reuse the link; marks the invoice Issued. |
 | `GET api/biller/invoicesnapshot/invoice/{id}/activity` | First/last open and open count. |
 | `POST api/biller/invoicesnapshot/{snapshotId}/revoke` | Kill a link. |
@@ -65,15 +67,51 @@ Validation (server-side):
 ## Numbering
 
 Numbers are per tenant and sequential. `TenantSetting.NextInvoiceNumber` is the next
-number to assign and `TenantSetting.InvoiceNumberPrefix` (optional, e.g. `INV-`) is
-printed in front of it. When `InvoiceNumber` is blank on create the service draws the
-number and increments the counter in one statement inside the invoice's transaction, so
-a failed create does not consume a number. A tenant that has already invoiced elsewhere
-raises the next number once in Settings.
+number to assign and `TenantSetting.InvoiceNumberFormat` is the literal text around a
+single `{n}` token:
 
-A number supplied by the client is kept. `(TenantID, InvoiceNumber)` is unique, so the
-same number cannot be saved twice; the service checks first to return a friendly message
-and the unique index is the guarantee under concurrency.
+```
+#{n:00000}      -> #00084
+INV-{n:0000}    -> INV-0084
+{n}             -> 84
+2026/{n:0000}   -> 2026/0084
+```
+
+A run of zeros after the colon sets the minimum width, and the number widens rather than
+truncating, so `#99999` is followed by `#100000`. Everything outside a token is printed
+as typed, which is why the `0` in `2026` is not a placeholder. An optional `{yyyy}`,
+`{y:2}` or `{y:4}` token prints the invoice's year; it does **not** reset the sequence.
+The format is capped at 30 characters and 9 digits because `Invoice.InvoiceNumber` is
+`varchar(30)` and the counter is an `int`. `InvoiceNumberFormat.TryParse` owns the rules
+and the messages, and `TenantSettingService.Validate` calls it. A new tenant's row is
+seeded with `InvoiceNumberFormat.DefaultFormat`, which is `#{n:00000}`.
+
+When `InvoiceNumber` is blank on create the service draws the number, formats it and
+increments the counter in one statement inside the invoice's transaction, so a failed
+create does not consume a number. If the counter has fallen behind numbers already issued
+(the tenant reset it, or typed numbers by hand) the claim skips them and heals the
+counter.
+
+A number supplied by the client is kept as typed, and it moves the counter with it when
+its trailing digits are at or above the counter, so the next automatic number continues
+after it. A lower number is kept as typed and leaves the counter alone — resetting the
+sequence is the tenant's choice. The format is a generator, not a validator: a typed
+number does not have to match it.
+
+A tenant that has already invoiced elsewhere raises the next number once in Settings.
+`(TenantID, InvoiceNumber)` is unique, so the same number cannot be saved twice; the
+service checks first to return a friendly message and the unique index is the guarantee
+under concurrency.
+
+The editor shows the number before saving: a new invoice opens with the value from
+`next-number`, which peeks (skipping numbers already issued) without consuming anything.
+The number is then pinned, so what the user sees is what is sent. Leaving the field runs
+`number-exists` and annotates a clash in place; a clash only discovered by the save is
+annotated the same way. The refresh icon re-reads `next-number`. There is no automatic
+renumbering: a taken number is always the user's to change or regenerate. The payment
+reference follows the invoice number — prefilled on a new invoice and updated whenever
+the number changes — because the two are almost always the same; it can still be edited
+afterwards, and changing the number again brings it back into line.
 
 ## Preview
 

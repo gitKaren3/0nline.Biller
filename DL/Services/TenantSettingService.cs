@@ -1,6 +1,7 @@
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Contract.Numbering;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Auth.Contract;
 using _0nline.Shared.Contract;
@@ -124,22 +125,29 @@ namespace _0nline.Biller.DL.Services
 
             var currency = _currencies.Get(setting.CurrencyCode);
 
+            // Stored as the parser normalises it, so what Settings shows is what the
+            // invoice service renders. Validate already refused an unusable format.
+            var numberFormat = InvoiceNumberFormat.TryParse(
+                setting.InvoiceNumberFormat, out var parsedFormat, out _)
+                ? parsedFormat!.Text
+                : InvoiceNumberFormat.DefaultFormat;
+
             using var conn = Connection;
             var saved = await conn.QuerySingleAsync<TenantSetting>(
                 $@"INSERT INTO {Quoted("TenantSetting")}
                        ({Quoted("TenantID")}, {Quoted("CurrencyCode")},
                         {Quoted("CurrencyMinorUnits")}, {Quoted("TimeZoneId")},
-                        {Quoted("DefaultTaxRate")}, {Quoted("InvoiceNumberPrefix")},
+                        {Quoted("DefaultTaxRate")}, {Quoted("InvoiceNumberFormat")},
                         {Quoted("NextInvoiceNumber")})
                    VALUES (@TenantID, @CurrencyCode, @CurrencyMinorUnits,
-                           @TimeZoneId, @DefaultTaxRate, @InvoiceNumberPrefix,
+                           @TimeZoneId, @DefaultTaxRate, @InvoiceNumberFormat,
                            @NextInvoiceNumber)
                    ON CONFLICT ({Quoted("TenantID")}) DO UPDATE SET
                        {Quoted("CurrencyCode")} = EXCLUDED.{Quoted("CurrencyCode")},
                        {Quoted("CurrencyMinorUnits")} = EXCLUDED.{Quoted("CurrencyMinorUnits")},
                        {Quoted("TimeZoneId")} = EXCLUDED.{Quoted("TimeZoneId")},
                        {Quoted("DefaultTaxRate")} = EXCLUDED.{Quoted("DefaultTaxRate")},
-                       {Quoted("InvoiceNumberPrefix")} = EXCLUDED.{Quoted("InvoiceNumberPrefix")},
+                       {Quoted("InvoiceNumberFormat")} = EXCLUDED.{Quoted("InvoiceNumberFormat")},
                        {Quoted("NextInvoiceNumber")} = EXCLUDED.{Quoted("NextInvoiceNumber")}
                    RETURNING *",
                 new
@@ -149,7 +157,7 @@ namespace _0nline.Biller.DL.Services
                     CurrencyMinorUnits = (short)currency.MinorUnits,
                     TimeZoneId = setting.TimeZoneId!.Trim(),
                     DefaultTaxRate = setting.DefaultTaxRate ?? 0m,
-                    InvoiceNumberPrefix = (setting.InvoiceNumberPrefix ?? string.Empty).Trim(),
+                    InvoiceNumberFormat = numberFormat,
                     NextInvoiceNumber = setting.NextInvoiceNumber is int next && next > 0 ? next : 1
                 });
 
@@ -232,8 +240,8 @@ namespace _0nline.Biller.DL.Services
             if (setting.DefaultTaxRate is < 0 or > 100)
                 return "The default tax rate must be between 0 and 100.";
 
-            if ((setting.InvoiceNumberPrefix ?? string.Empty).Trim().Length > 20)
-                return "The invoice number prefix may not exceed 20 characters.";
+            if (InvoiceNumberFormat.Validate(setting.InvoiceNumberFormat) is { } formatError)
+                return formatError;
 
             if (setting.NextInvoiceNumber is int next && next < 1)
                 return "The next invoice number must be at least 1.";

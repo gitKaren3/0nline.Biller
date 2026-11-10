@@ -1,4 +1,5 @@
 using _0nline.Biller.DL.Contract.Interfaces;
+using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Shared.Contract.Models;
 using Microsoft.Extensions.Options;
@@ -24,5 +25,12 @@ namespace _0nline.Biller.Wasm.Client.DL
 
         public Task<Result<byte[]>> PreviewAsync(int id)
             => GetBytesAsync($"{id}/preview.pdf");
+
+        public Task<Result<InvoiceNumberPreview>> PeekInvoiceNumberAsync()
+            => GetAndHandleAsync<InvoiceNumberPreview>("next-number");
+
+        public Task<Result<bool>> InvoiceNumberExistsAsync(string? number, int excludeInvoiceId = 0)
+            => GetAndHandleAsync<bool>(
+                $"number-exists?number={Uri.EscapeDataString(number?.Trim() ?? string.Empty)}&id={excludeInvoiceId}");
     }
 }
