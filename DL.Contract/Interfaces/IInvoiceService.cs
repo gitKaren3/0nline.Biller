@@ -30,5 +30,12 @@ namespace _0nline.Biller.DL.Contract.Interfaces
         /// the guarantee - and an invoice's own number is not a clash.
         /// </summary>
         Task<Result<bool>> InvoiceNumberExistsAsync(string? number, int excludeInvoiceId = 0);
+
+        /// <summary>
+        /// The last quantity used for this contact, company and rate type, excluding
+        /// drafts and cancelled invoices. Null when there is no history.
+        /// </summary>
+        Task<Result<decimal?>> LastQuantityAsync(
+            int contactId, int? companyId, short rateTypeId, int excludeInvoiceId = 0);
     }
 }

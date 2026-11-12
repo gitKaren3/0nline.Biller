@@ -1,0 +1,122 @@
+@using _0nline.Biller.DL.Contract.Models.db
+
+@* The shortlist of captured rates that may price this line. It is grouped by rate
+   type and ranked with the most specific, most recent rate first. "New..." is
+   deliberately first: capturing a missing rate is part of choosing one. *@
+
+<MudMenu Label="Quick Rate" Variant="Variant.Text" Size="Size.Small"
+         EndIcon="@Icons.Material.Filled.ArrowDropDown" Color="Color.Primary">
+    <MudMenuItem OnClick="@(() => OnNew.InvokeAsync(null))">
+        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+            <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
+            <MudText Typo="Typo.body2">New…</MudText>
+        </MudStack>
+    </MudMenuItem>
+
+    @if (_ranked.Count == 0)
+    {
+        <MudMenuItem Disabled="true">
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">No matching rates</MudText>
+        </MudMenuItem>
+    }
+    else
+    {
+        var first = true;
+        @foreach (var group in _ranked.GroupBy(rate => rate.RateTypeID)
+                      .OrderBy(group => RateTypeOrder(group.Key)))
+        {
+            if (!first)
+            {
+                <MudDivider Class="my-1" />
+            }
+            first = false;
+
+            <MudText Typo="Typo.caption" Class="px-3 pt-2 mud-text-secondary">
+                @RateTypeName(group.Key)
+            </MudText>
+
+            @foreach (var rate in group)
+            {
+                <MudMenuItem OnClick="@(() => PickAsync(rate))">
+                    <MudStack Spacing="0">
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                            <MudText Typo="Typo.body2">@Money(rate.RateIncl)</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@Scope(rate)</MudText>
+                        </MudStack>
+                        @if (!string.IsNullOrWhiteSpace(rate.Note))
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@rate.Note</MudText>
+                        }
+                    </MudStack>
+                </MudMenuItem>
+            }
+        }
+    }
+</MudMenu>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<TenantRate> Rates { get; set; } = Array.Empty<TenantRate>();
+
+    [Parameter] public int ContactId { get; set; }
+
+    [Parameter] public int? CompanyId { get; set; }
+
+    [Parameter] public IReadOnlyDictionary<int, string> RateTypes { get; set; } = new Dictionary<int, string>();
+
+    [Parameter] public IReadOnlyDictionary<int, string> Companies { get; set; } = new Dictionary<int, string>();
+
+    [Parameter] public IReadOnlyDictionary<int, string> Contacts { get; set; } = new Dictionary<int, string>();
+
+    [Parameter] public string CurrencySymbol { get; set; } = "R";
+
+    [Parameter] public int MinorUnits { get; set; } = 2;
+
+    [Parameter] public EventCallback<TenantRate> OnPick { get; set; }
+
+    /// <summary>Raised by "New…". The caller opens a rate capture for the line.</summary>
+    [Parameter] public EventCallback<short?> OnNew { get; set; }
+
+    private IReadOnlyList<TenantRate> _ranked = Array.Empty<TenantRate>();
+
+    protected override void OnParametersSet()
+    {
+        _ranked = TenantRateResolver.Ranked(Rates, ContactId, CompanyId);
+    }
+
+    private Task PickAsync(TenantRate rate) => OnPick.InvokeAsync(rate);
+
+    private string Money(decimal? value)
+    {
+        int decimals = Math.Clamp(MinorUnits, 0, 4);
+        return $"{CurrencySymbol}{(value ?? 0m).ToString("N" + decimals)}";
+    }
+
+    private string RateTypeName(short id)
+        => RateTypes.TryGetValue(id, out var name) ? name : $"Rate type {id}";
+
+    private int RateTypeOrder(short id)
+        => RateTypes.Keys.ToList().IndexOf(id) is int index && index >= 0 ? index : int.MaxValue;
+
+    private string Scope(TenantRate rate)
+    {
+        var scope = TenantRateResolver.ScopeOf(rate, ContactId, CompanyId);
+
+        return scope switch
+        {
+            TenantRateScope.CompanyContact => Join(
+                ContactName(rate.ContactID), CompanyName(rate.CompanyID)),
+            TenantRateScope.Company => CompanyName(rate.CompanyID),
+            TenantRateScope.Contact => ContactName(rate.ContactID),
+            _ => "Standard"
+        };
+    }
+
+    private string ContactName(int? id)
+        => id is int contactId && Contacts.TryGetValue(contactId, out var name) ? name : "Contact";
+
+    private string CompanyName(int? id)
+        => id is int companyId && Companies.TryGetValue(companyId, out var name) ? name : "Company";
+
+    private static string Join(params string?[] parts)
+        => string.Join(" · ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+}

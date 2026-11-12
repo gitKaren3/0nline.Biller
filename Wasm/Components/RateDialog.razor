@@ -1,31 +1,19 @@
 @inject ITenantRateService TenantRateService
-@inject IRateTypeService RateTypeService
 @inject ISnackbar Snackbar
 
-@* A minimal rate capture for the invoice editor: choose a rate type and an amount.
-   On success the dialog returns the created TenantRate so the caller can select it. *@
+@* A minimal rate capture for the invoice editor. The caller supplies the invoice's
+   contact/company and, when the line already has one, the rate type and amount. *@
 
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">Add a rate</MudText>
     </TitleContent>
     <DialogContent>
-        <EditForm @ref="_form" Model="_model" OnValidSubmit="SaveAsync" Class="mt-2">
-            <DataAnnotationsValidator />
-
-            <MudSelect T="short?" Label="Rate type" Class="mt-3" ShrinkLabel="true"
-                       Placeholder="Select a rate type"
-                       @bind-Value="_model.RateTypeSelection"
-                       For="@(() => _model.RateTypeSelection)">
-                @foreach (var rateType in RateTypeOptions)
-                {
-                    <MudSelectItem T="short?" Value="@((short)rateType.Key)">@rateType.Value</MudSelectItem>
-                }
-            </MudSelect>
-
-            <MudNumericField T="decimal?" Label="Rate" Class="mt-3" ShrinkLabel="true" Min="0"
-                             @bind-Value="_model.DefaultRate" For="@(() => _model.DefaultRate)" />
-        </EditForm>
+        <TenantRateForm @ref="_form" Model="_model"
+                        RateTypes="RateTypes" Companies="Companies" Contacts="Contacts"
+                        ShowTax="ShowTax" TaxRate="TaxRate"
+                        MinorUnits="MinorUnits" CurrencySymbol="@CurrencySymbol"
+                        Disabled="_saving" />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Disabled="_saving">Cancel</MudButton>
@@ -38,19 +26,33 @@
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    private readonly TenantRate _model = new() { StartDate = DateTime.Today };
-    private EditForm? _form;
-    private IReadOnlyDictionary<int, string> _rateTypes = new Dictionary<int, string>();
+    [Parameter] public short? RateTypeID { get; set; }
+    [Parameter] public int? ContactID { get; set; }
+    [Parameter] public int? CompanyID { get; set; }
+    [Parameter] public decimal? RateIncl { get; set; }
+
+    [Parameter] public IReadOnlyDictionary<int, string>? RateTypes { get; set; }
+    [Parameter] public IReadOnlyDictionary<int, string>? Companies { get; set; }
+    [Parameter] public IReadOnlyDictionary<int, string>? Contacts { get; set; }
+
+    [Parameter] public bool ShowTax { get; set; }
+    [Parameter] public decimal TaxRate { get; set; }
+    [Parameter] public int MinorUnits { get; set; } = 2;
+    [Parameter] public string CurrencySymbol { get; set; } = "R";
+
+    private TenantRate _model = new();
+    private TenantRateForm? _form;
     private bool _saving;
 
-    private IEnumerable<KeyValuePair<int, string>> RateTypeOptions
-        => _rateTypes.OrderBy(option => option.Value, StringComparer.CurrentCultureIgnoreCase);
-
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        var result = await RateTypeService.GetLookupAsync();
-        if (result.Successful && result.Value != null)
-            _rateTypes = result.Value;
+        _model = new TenantRate
+        {
+            RateTypeID = RateTypeID ?? 0,
+            ContactID = ContactID,
+            CompanyID = CompanyID,
+            RateIncl = RateIncl
+        };
     }
 
     private void Cancel() => MudDialog.Cancel();
@@ -60,7 +62,7 @@
         if (_saving)
             return;
 
-        if (_form?.EditContext?.Validate() != true)
+        if (_form?.Validate() != true)
             return;
 
         _saving = true;
@@ -75,6 +77,10 @@
             }
 
             Snackbar.Add(Describe(result, "The rate could not be added."), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"The rate could not be added: {ex.Message}", Severity.Error);
         }
         finally
         {

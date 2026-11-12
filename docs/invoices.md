@@ -31,6 +31,7 @@ Draft ──finalize──► Finalized ──send──► Issued
 | `GET api/biller/invoice/{id}/preview.pdf` | Render the saved invoice. No snapshot, no access count. |
 | `GET api/biller/invoice/next-number` | The number the next invoice will draw. Does **not** consume it. |
 | `GET api/biller/invoice/number-exists?number=…&id=…` | Whether the number is already used. Advisory; the save is the guarantee. |
+| `GET api/biller/invoice/last-qty?contactId=…&companyId=…&rateTypeId=…` | The last quantity for that client and rate type, used to prefill a line. |
 | `POST api/biller/invoicesnapshot/invoice/{id}[?regenerate=true]` | Create/reuse the link; marks the invoice Issued. |
 | `GET api/biller/invoicesnapshot/invoice/{id}/activity` | First/last open and open count. |
 | `POST api/biller/invoicesnapshot/{snapshotId}/revoke` | Kill a link. |
@@ -59,9 +60,11 @@ Validation (server-side):
 
 - a contact is required and must belong to the caller's tenant;
 - an optional company must belong to the caller's tenant;
-- every line needs a description (≤200), quantity > 0, a rate, and non-negative
+- every line needs a description (≤200), quantity > 0, and a non-negative
   billed rate and tax;
-- every rate must belong to the caller's tenant;
+- `RateTypeID` is optional; when a line carries a `TenantRateID`, that rate must
+  belong to the caller's tenant and the line's type and price must still equal the
+  captured rate;
 - invoice number ≤30, payment reference ≤250.
 
 ## Numbering
@@ -134,10 +137,14 @@ tenant (`TenantID` is unique) and it is created by the first-login ensure step.
   When it is set, lines default to that scheme and to `DefaultTaxRate`.
 - **Tax is inclusive.** `InvoiceLine.BilledRateIncl` already contains the tax.
   The service extracts it from the gross at `TaxRate` (rounded to the
-  currency's minor units) and stores the result in `TotalTax`. The rate, scheme
-  and optional note are stored on the line, so a later settings change cannot
-  alter an issued invoice.
-- **The snapshot freezes all of it.** `InvoicePdfModel` layout version 2 carries
+  currency's minor units) and stores the result in `TotalTax`. A line may start
+  from a captured `TenantRate.RateIncl` and a rate type, but the line keeps its
+  own price and tax, so a later rate or settings change cannot alter it.
+  A captured rate's own tax is derived for display, not stored on the rate;
+  editing either Excl or Incl in the editor writes the inclusive value.
+  The rate, scheme and optional note are stored on the line, so a later settings
+  change cannot alter an issued invoice.
+- **The snapshot freezes all of it.** `InvoicePdfModel` layout version 3 carries
   the currency code, symbol, minor units, the tax scheme name and the seller's
   tax number. The PDF prints the symbol and the tax breakdown; it never reads
   settings at render time.

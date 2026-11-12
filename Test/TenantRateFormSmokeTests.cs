@@ -13,7 +13,7 @@ public class TenantRateFormSmokeTests : Base.MudTestContext, IAsyncLifetime
     [Fact]
     public void RendersWithoutLookupServices()
     {
-        var model = new TenantRate { RateTypeID = 1, DefaultRate = 100m };
+        var model = new TenantRate { RateTypeID = 1, RateIncl = 100m };
 
         var cut = Render<TenantRateForm>(p => p.Add(x => x.Model, model));
 

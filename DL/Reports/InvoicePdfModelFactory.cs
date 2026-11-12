@@ -29,7 +29,7 @@ namespace _0nline.Biller.DL.Reports
                 .Select(line => new InvoicePdfLine
                 {
                     Description = line.Description ?? string.Empty,
-                    RateName = line.TenantRate is { RateTypeID: var rateTypeId }
+                    RateName = line.RateTypeID is short rateTypeId
                                && rateTypes.TryGetValue(rateTypeId, out var rateName)
                         ? rateName
                         : null,

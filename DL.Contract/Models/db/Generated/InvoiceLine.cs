@@ -37,8 +37,7 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         [Editable(true)]
         [ForeignKey("TenantRate")]
-        [Required(ErrorMessage = "Required")]
-        public int TenantRateID { get; set; } = 0;
+        public int? TenantRateID { get; set; }
 
         [Editable(true)]
         [Required(ErrorMessage = "Required")]
@@ -60,6 +59,10 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [StringLength(250, ErrorMessage = "Max 250 characters")]
         public string? TaxNote { get; set; }
 
+        [Editable(true)]
+        [ForeignKey("RateType")]
+        public short? RateTypeID { get; set; }
+
         // Strongly typed views of lookup foreign keys
         [NotMapped]
         [Editable(false)]
@@ -74,5 +77,6 @@ namespace _0nline.Biller.DL.Contract.Models.db
         public Invoice? Invoice { get; set; }
         public TenantRate? TenantRate { get; set; }
         public TaxScheme? TaxScheme { get; set; }
+        public RateType? RateType { get; set; }
     }
 }

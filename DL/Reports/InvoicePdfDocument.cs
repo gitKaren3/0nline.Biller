@@ -133,6 +133,8 @@ namespace _0nline.Biller.DL.Reports
 
         private static void Lines(IContainer container, InvoicePdfModel model)
         {
+            bool showTax = ShowsTax(model);
+
             container.Table(table =>
             {
                 table.ColumnsDefinition(columns =>
@@ -140,7 +142,8 @@ namespace _0nline.Biller.DL.Reports
                     columns.RelativeColumn(6);
                     columns.ConstantColumn(28);
                     columns.ConstantColumn(62);
-                    columns.ConstantColumn(52);
+                    if (showTax)
+                        columns.ConstantColumn(52);
                     columns.ConstantColumn(62);
                 });
 
@@ -148,8 +151,9 @@ namespace _0nline.Biller.DL.Reports
                 {
                     header.Cell().Element(HeaderCell).Text("Description");
                     header.Cell().Element(HeaderCell).AlignRight().Text("Qty");
-                    header.Cell().Element(HeaderCell).AlignRight().Text("Rate");
-                    header.Cell().Element(HeaderCell).AlignRight().Text("Tax");
+                    header.Cell().Element(HeaderCell).AlignRight().Text(showTax ? "Excl" : "Rate");
+                    if (showTax)
+                        header.Cell().Element(HeaderCell).AlignRight().Text("Tax");
                     header.Cell().Element(HeaderCell).AlignRight().Text("Amount");
                 });
 
@@ -163,8 +167,10 @@ namespace _0nline.Biller.DL.Reports
                     });
 
                     table.Cell().Element(BodyCell).AlignRight().Text(line.Qty.ToString("0.##", CultureInfo.InvariantCulture));
-                    table.Cell().Element(BodyCell).AlignRight().Text(Money(line.UnitPrice, model));
-                    table.Cell().Element(BodyCell).AlignRight().Text(Money(line.Tax, model));
+                    table.Cell().Element(BodyCell).AlignRight()
+                        .Text(Money(showTax ? line.UnitPriceExcl : line.UnitPrice, model));
+                    if (showTax)
+                        table.Cell().Element(BodyCell).AlignRight().Text(Money(line.UnitTax, model));
                     table.Cell().Element(BodyCell).AlignRight().Text(Money(line.Amount, model));
                 }
             });
@@ -174,12 +180,16 @@ namespace _0nline.Biller.DL.Reports
         {
             container.Column(column =>
             {
-                column.Item().Row(row =>
+                if (ShowsTax(model))
                 {
-                    row.RelativeItem().Text(model.TaxSchemeName is { } scheme ? $"Tax ({scheme})" : "Tax")
-                        .FontColor(Muted);
-                    row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(Money(model.TotalTax, model));
-                });
+                    column.Item().Row(row =>
+                    {
+                        row.RelativeItem()
+                            .Text(model.TaxSchemeName is { } scheme ? $"Tax ({scheme})" : "Tax")
+                            .FontColor(Muted);
+                        row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(Money(model.TotalTax, model));
+                    });
+                }
 
                 column.Item().PaddingTop(4).BorderTop(1).BorderColor(Rule).PaddingTop(6).Row(row =>
                 {
@@ -189,6 +199,9 @@ namespace _0nline.Biller.DL.Reports
                 });
             });
         }
+
+        private static bool ShowsTax(InvoicePdfModel model)
+            => !string.IsNullOrWhiteSpace(model.TaxSchemeName);
 
         private static void Bank(IContainer container, InvoicePdfBank bank)
         {

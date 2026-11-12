@@ -20,6 +20,24 @@ namespace _0nline.Biller.DL.Contract.Models
             return decimal.Round(raw, Math.Clamp(minorUnits, 0, 4), MidpointRounding.AwayFromZero);
         }
 
+        /// <summary>
+        /// The tax added to a net amount, rounded to the currency's minor units. The
+        /// gross is always <c>net + tax</c>, so editing either side of a tax-inclusive
+        /// field keeps the two numbers adding up exactly.
+        /// </summary>
+        public static decimal TaxFromNet(decimal net, decimal ratePercent, int minorUnits)
+        {
+            if (net == 0m || ratePercent <= 0m)
+                return 0m;
+
+            decimal raw = net * ratePercent / 100m;
+            return decimal.Round(raw, Math.Clamp(minorUnits, 0, 4), MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>The tax-inclusive amount for a net amount at the given rate.</summary>
+        public static decimal GrossFromNet(decimal net, decimal ratePercent, int minorUnits)
+            => net + TaxFromNet(net, ratePercent, minorUnits);
+
         /// <summary>The amount excluding tax, given the gross and the extracted tax.</summary>
         public static decimal NetFromInclusive(decimal gross, decimal tax) => gross - tax;
     }

@@ -16,7 +16,7 @@ namespace _0nline.Biller.DL.Contract.Models
         /// The shape of this model. Stored beside the snapshot so a future renderer
         /// can tell which contract the JSON was written under.
         /// </summary>
-        public const short CurrentLayoutVersion = 2;
+        public const short CurrentLayoutVersion = 3;
 
         public string InvoiceNumber { get; init; } = string.Empty;
 

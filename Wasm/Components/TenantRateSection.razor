@@ -2,17 +2,20 @@
 @inject IRateTypeService RateTypeService
 @inject ICompanyService CompanyService
 @inject IContactService ContactService
+@inject IServiceProvider Services
 @inject ISnackbar Snackbar
 
-@* The tenant's billing rates. Loads and saves itself, so it can stand alone on a page *@
+@* The tenant's captured rates. Loads and saves itself, so it can stand alone on a page *@
 @* or sit in a Get Started wizard as one step. Set ShowHeading=false when the host titles it. *@
 
 @if (ShowHeading)
 {
     <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">Billing rates</MudText>
 }
+
 <MudText Typo="Typo.body2" Class="mb-4">
-    What you charge. A rate with no client applies to everyone; pick a client or contact to charge them differently.
+    Rates are captured, not edited. The standard rate applies to everyone; a client or
+    contact rate takes precedence. Deleting a rate that has been used archives it instead.
 </MudText>
 
 @if (_loading)
@@ -33,6 +36,8 @@ else if (_editing)
     <MudPaper Outlined="true" Elevation="0" Class="pa-4">
         <TenantRateForm @ref="_form" Model="_model"
                         RateTypes="_rateTypes" Companies="_companies" Contacts="_contacts"
+                        ShowTax="_showTax" TaxRate="_taxRate"
+                        MinorUnits="_minorUnits" CurrencySymbol="@_currencySymbol"
                         Disabled="_saving" />
     </MudPaper>
 
@@ -40,73 +45,90 @@ else if (_editing)
         <MudButton OnClick="CancelEdit" Disabled="_saving">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    OnClick="SaveAsync" Disabled="_saving">
-            @(_saving ? "Saving..." : "Save rate")
+            @(_saving ? "Saving..." : "Capture rate")
         </MudButton>
     </MudStack>
 }
 else
 {
-    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-        <MudText Typo="Typo.subtitle1">
-            @(_rates.Count == 0 ? "No rates yet" : "Saved rates")
-        </MudText>
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="flex-wrap">
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+            <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                <MudButton Color="@(_showArchived ? Color.Default : Color.Primary)"
+                           OnClick="@(() => _showArchived = false)">Current</MudButton>
+                <MudButton Color="@(_showArchived ? Color.Primary : Color.Default)"
+                           OnClick="@(() => _showArchived = true)">Archived</MudButton>
+            </MudButtonGroup>
+
+            @if (_issuerTaxRegistered)
+            {
+                <MudSwitch T="bool" @bind-Value="_showTax" Label="Show tax"
+                           Color="Color.Primary" Size="Size.Small" />
+            }
+        </MudStack>
+
         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="Add">
             Add rate
         </MudButton>
     </MudStack>
 
-    @if (_rates.Count == 0)
+    @if (!VisibleRates.Any())
     {
-        <MudText Typo="Typo.body2" Class="mt-2">
-            Add the rate you charge for your work. Invoice lines are priced against it.
+        <MudText Typo="Typo.body2" Class="mt-3">
+            @(_showArchived
+                ? "No archived rates."
+                : "No current rates yet. Capture the rate you charge for your work.")
         </MudText>
     }
     else
     {
         <MudPaper Outlined="true" Elevation="0" Class="mt-3">
-            @for (int i = 0; i < _rates.Count; i++)
+            @foreach (var group in Groups)
             {
-                var rate = _rates[i];
+                <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="px-4 pt-3 pb-1">
+                    @RateTypeName(group.Key)
+                </MudText>
 
-                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
-                          Class="px-4 py-3">
-                    <MudStack Spacing="0">
-                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-                            <MudText Typo="Typo.subtitle2">@Describe(rate)</MudText>
-                            @if (rate.Active == false)
+                @foreach (var rate in group)
+                {
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
+                              Class="px-4 py-3">
+                        <MudStack Spacing="0">
+                            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.subtitle2">@ScopeLabel(rate)</MudText>
+                                @if (rate.Active == false)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default"
+                                             Variant="Variant.Outlined">Archived</MudChip>
+                                }
+                            </MudStack>
+                            <MudText Typo="Typo.body2">@Amount(rate)</MudText>
+                            @if (!string.IsNullOrWhiteSpace(rate.Note))
                             {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Default"
-                                         Variant="Variant.Outlined">Inactive</MudChip>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@rate.Note</MudText>
                             }
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                Captured @Captured(rate)
+                            </MudText>
                         </MudStack>
-                        <MudText Typo="Typo.body2">@Amount(rate) · @Period(rate)</MudText>
-                    </MudStack>
 
-                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
-                        @if (_confirmRemoveId == rate.ID)
-                        {
-                            <MudText Typo="Typo.body2">Remove?</MudText>
-                            <MudButton Size="Size.Small" Color="Color.Error"
-                                       OnClick="@(() => RemoveAsync(rate))">Yes</MudButton>
-                            <MudButton Size="Size.Small" OnClick="@(() => _confirmRemoveId = null)">No</MudButton>
-                        }
-                        else
-                        {
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                           aria-label="Edit rate" OnClick="@(() => Edit(rate))" />
-
-                            @if (rate.Active != false)
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            @if (_confirmRemoveId == rate.ID)
+                            {
+                                <MudText Typo="Typo.body2">Remove?</MudText>
+                                <MudButton Size="Size.Small" Color="Color.Error"
+                                           OnClick="@(() => RemoveAsync(rate))">Yes</MudButton>
+                                <MudButton Size="Size.Small" OnClick="@(() => _confirmRemoveId = null)">No</MudButton>
+                            }
+                            else if (rate.Active != false)
                             {
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                                aria-label="Remove rate"
                                                OnClick="@(() => _confirmRemoveId = rate.ID)" />
                             }
-                        }
+                        </MudStack>
                     </MudStack>
-                </MudStack>
 
-                @if (i < _rates.Count - 1)
-                {
                     <MudDivider />
                 }
             }
@@ -129,6 +151,14 @@ else
     private IReadOnlyDictionary<int, string> _companies = Empty;
     private IReadOnlyDictionary<int, string> _contacts = Empty;
 
+    private TenantSetting? _settings;
+    private bool _issuerTaxRegistered;
+    private bool _showTax;
+    private bool _showArchived;
+    private decimal _taxRate;
+    private int _minorUnits = 2;
+    private string _currencySymbol = "R";
+
     private TenantRateForm? _form;
 
     private bool _loading = true;
@@ -136,6 +166,17 @@ else
     private bool _editing;
     private string? _loadError;
     private int? _confirmRemoveId;
+
+    private IEnumerable<TenantRate> VisibleRates => _rates
+        .Where(rate => _showArchived ? rate.Active == false : rate.Active != false);
+
+    private IEnumerable<IGrouping<short, TenantRate>> Groups => VisibleRates
+        .OrderBy(rate => RateTypeOrder(rate.RateTypeID))
+        .ThenBy(PageRank)
+        .ThenBy(ScopeLabel, StringComparer.CurrentCultureIgnoreCase)
+        .ThenByDescending(rate => rate.CapturedOn)
+        .ThenByDescending(rate => rate.ID)
+        .GroupBy(rate => rate.RateTypeID);
 
     protected override async Task OnInitializedAsync() => await ReloadAsync();
 
@@ -166,13 +207,33 @@ else
             _companies = await companiesTask;
             _contacts = await contactsTask;
 
-            // Open rates first, then in the rate types' own order (the enum's order, not
-            // alphabetical), newest first within a type. An ended rate stays visible:
-            // invoice history points at it.
+            var settingsService = Services.GetService(typeof(ITenantSettingService)) as ITenantSettingService;
+            var settings = settingsService is null
+                ? Result<TenantSetting>.None()
+                : await settingsService.GetForTenantAsync();
+
+            _settings = settings.Successful ? settings.Value : null;
+            _taxRate = _settings?.DefaultTaxRate ?? 0m;
+            _minorUnits = _settings?.CurrencyMinorUnits ?? 2;
+            _currencySymbol = CurrencyCatalog.Default
+                .Get(_settings?.CurrencyCode ?? "ZAR").Symbol;
+
+            var tenantService = Services.GetService(typeof(ITenantService)) as ITenantService;
+            var session = Services.GetService(typeof(UserSession)) as UserSession;
+            var tenant = tenantService is not null && session?.TenantId > 0
+                ? await tenantService.GetOneAsync(session.TenantId)
+                : Result<Tenant?>.Success(null);
+
+            _issuerTaxRegistered = tenant.Successful
+                && tenant.Value?.Company?.TaxSchemeID is not null;
+            _showTax = _issuerTaxRegistered;
+
             _rates = rates
                 .OrderBy(rate => rate.Active == false ? 1 : 0)
-                .ThenBy(rate => rate.RateTypeID)
-                .ThenByDescending(rate => rate.StartDate)
+                .ThenBy(rate => RateTypeOrder(rate.RateTypeID))
+                .ThenBy(PageRank)
+                .ThenBy(ScopeLabel, StringComparer.CurrentCultureIgnoreCase)
+                .ThenByDescending(rate => rate.CapturedOn)
                 .ToList();
         }
         catch (Exception ex)
@@ -189,13 +250,6 @@ else
     {
         _confirmRemoveId = null;
         _model = new TenantRate();
-        _editing = true;
-    }
-
-    private void Edit(TenantRate rate)
-    {
-        _confirmRemoveId = null;
-        _model = Clone(rate);
         _editing = true;
     }
 
@@ -216,17 +270,15 @@ else
 
         try
         {
-            var saved = _model.ID > 0
-                ? await RateService.UpdateAsync(_model)
-                : await RateService.CreateAsync(_model);
+            var saved = await RateService.CreateAsync(_model);
 
             if (!saved.Successful)
             {
-                Snackbar.Add(Describe(saved, "The rate could not be saved."), Severity.Error);
+                Snackbar.Add(Describe(saved, "The rate could not be captured."), Severity.Error);
                 return;
             }
 
-            Snackbar.Add("Rate saved.", Severity.Success);
+            Snackbar.Add("Rate captured.", Severity.Success);
             _editing = false;
             _model = new TenantRate();
 
@@ -234,7 +286,7 @@ else
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Capture failed: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -248,7 +300,7 @@ else
 
         try
         {
-            // The service hard-deletes when nothing references the rate and deactivates
+            // The service hard-deletes when nothing references the rate and archives
             // when an invoice line still does.
             var result = await RateService.DeleteOrDeactivateAsync(rate.ID);
 
@@ -281,10 +333,27 @@ else
         }
     }
 
-    /// <summary>What the rate is for: the rate type, then the client it is limited to.</summary>
-    private string Describe(TenantRate rate)
+    private string RateTypeName(short rateTypeId)
+        => _rateTypes.TryGetValue(rateTypeId, out var name) ? name : $"Rate type {rateTypeId}";
+
+    private int RateTypeOrder(short rateTypeId)
     {
-        var parts = new List<string> { RateTypeName(rate.RateTypeID) };
+        int index = _rateTypes.Keys.ToList().IndexOf(rateTypeId);
+        return index >= 0 ? index : int.MaxValue;
+    }
+
+    private static int PageRank(TenantRate rate) => (rate.CompanyID, rate.ContactID) switch
+    {
+        (null, null) => 0,          // standard first
+        (not null, null) => 1,      // company
+        (null, not null) => 2,      // contact
+        _ => 3                      // company + contact
+    };
+
+    /// <summary>What the rate is for, without repeating the rate type.</summary>
+    private string ScopeLabel(TenantRate rate)
+    {
+        var parts = new List<string>();
 
         if (rate.CompanyID is int companyId && _companies.TryGetValue(companyId, out var company))
             parts.Add(company);
@@ -292,37 +361,30 @@ else
         if (rate.ContactID is int contactId && _contacts.TryGetValue(contactId, out var contact))
             parts.Add(contact);
 
-        return string.Join(" · ", parts);
+        return parts.Count == 0 ? "Standard" : string.Join(" · ", parts);
     }
 
-    private string RateTypeName(short rateTypeId)
-        => _rateTypes.TryGetValue(rateTypeId, out var name) ? name : $"Rate type {rateTypeId}";
-
-    private static string Amount(TenantRate rate)
-        => rate.DefaultRate?.ToString("N2") ?? "—";
-
-    private static string Period(TenantRate rate)
+    private string Amount(TenantRate rate)
     {
-        var start = rate.StartDate is DateTime from ? $"from {from:d MMM yyyy}" : "no start date";
+        var incl = rate.RateIncl ?? 0m;
+        var money = Money(incl);
 
-        return rate.EndDate is DateTime to
-            ? $"{start} to {to:d MMM yyyy}"
-            : start;
+        if (!_showTax || !_issuerTaxRegistered)
+            return money;
+
+        var tax = TaxMath.TaxFromInclusive(incl, _taxRate, _minorUnits);
+        var excl = TaxMath.NetFromInclusive(incl, tax);
+
+        return $"{money} · Excl {Money(excl)} + Tax {Money(tax)}";
     }
 
-    /// <summary>Editing a copy keeps the list unchanged if the save fails.</summary>
-    private static TenantRate Clone(TenantRate rate) => new()
-    {
-        ID = rate.ID,
-        TenantID = rate.TenantID,
-        RateTypeID = rate.RateTypeID,
-        CompanyID = rate.CompanyID,
-        ContactID = rate.ContactID,
-        DefaultRate = rate.DefaultRate,
-        Active = rate.Active,
-        StartDate = rate.StartDate,
-        EndDate = rate.EndDate
-    };
+    private string Money(decimal value)
+        => $"{_currencySymbol}{value.ToString("N" + Math.Clamp(_minorUnits, 0, 4))}";
+
+    private string Captured(TenantRate rate)
+        => rate.CapturedOn is DateTime captured
+            ? captured.ToUniversalTime().ToString("d MMM yyyy HH:mm 'UTC'")
+            : "—";
 
     private static string Describe(Result result, string fallback)
         => result.Errors.FirstOrDefault()

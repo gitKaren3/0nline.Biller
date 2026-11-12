@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -7,10 +6,11 @@ using System.Text.Json.Serialization;
 namespace _0nline.Biller.DL.Contract.Models.db
 {
     /// <summary>
-    /// Hand-written rules for a rate. The generated model cannot carry them, and its
-    /// non-nullable <see cref="RateTypeID"/> cannot represent "nothing selected" (the
-    /// sentinel is 0). These run only where a <c>DataAnnotationsValidator</c> validates
-    /// the instance; the API does not validate its input.
+    /// Hand-written rules for a captured rate. The generated model cannot carry
+    /// them, and its non-nullable <see cref="RateTypeID"/> cannot represent
+    /// "nothing selected" (the sentinel is 0). These run only where a
+    /// <c>DataAnnotationsValidator</c> validates the instance; the API does not
+    /// validate its input.
     /// </summary>
     public partial class TenantRate : IValidatableObject
     {
@@ -26,6 +26,7 @@ namespace _0nline.Biller.DL.Contract.Models.db
         /// and <see cref="EditableAttribute"/> keeps DbService from writing it.
         /// </remarks>
         [Required(ErrorMessage = "Choose a rate type.")]
+        [NotMapped]
         [Editable(false)]
         [JsonIgnore]
         public short? RateTypeSelection
@@ -36,16 +37,21 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
-            if (DefaultRate is < 0)
+            if (RateIncl is null)
             {
                 yield return new ValidationResult(
-                    "The rate cannot be negative.", new[] { nameof(DefaultRate) });
+                    "Enter a rate.", new[] { nameof(RateIncl) });
+            }
+            else if (RateIncl < 0)
+            {
+                yield return new ValidationResult(
+                    "The rate cannot be negative.", new[] { nameof(RateIncl) });
             }
 
-            if (StartDate is DateTime start && EndDate is DateTime end && end.Date < start.Date)
+            if (RateTypeID <= 0)
             {
                 yield return new ValidationResult(
-                    "The end date must be on or after the start date.", new[] { nameof(EndDate) });
+                    "Choose a rate type.", new[] { nameof(RateTypeID) });
             }
         }
     }

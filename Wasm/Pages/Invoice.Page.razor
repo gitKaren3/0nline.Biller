@@ -8,6 +8,7 @@
 @inject ITenantRateService TenantRateService
 @inject IRateTypeService RateTypeService
 @inject ITenantSettingService TenantSettingService
+@inject IServiceProvider Services
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -123,7 +124,8 @@
                             <MudSelect T="int?" Label="Contact" ShrinkLabel="true"
                                        Required="true" RequiredError="Choose a contact."
                                        Disabled="@(!IsDraft)"
-                                       @bind-Value="_invoice.IssuedToContactSelection">
+                                       Value="_invoice.IssuedToContactSelection"
+                                       ValueChanged="OnContactChanged">
                                 @foreach (var contact in ContactOptions)
                                 {
                                     <MudSelectItem T="int?" Value="@contact.Key">@contact.Value</MudSelectItem>
@@ -134,7 +136,8 @@
                         <MudItem xs="12" sm="6" lg="4">
                             <MudSelect T="int?" Label="Company (optional)" ShrinkLabel="true" Clearable="true"
                                        Disabled="@(!IsDraft)"
-                                       @bind-Value="_invoice.CompanyID">
+                                       Value="_invoice.CompanyID"
+                                       ValueChanged="OnCompanyChanged">
                                 @foreach (var company in CompanyOptions)
                                 {
                                     <MudSelectItem T="int?" Value="@company.Key">@company.Value</MudSelectItem>
@@ -152,32 +155,53 @@
 
                     <div class="mt-8"></div>
 
+                    @if (_issuerTaxRegistered)
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                            <MudSwitch T="bool" @bind-Value="_showTax" Label="Show tax"
+                                       Color="Color.Primary" Size="Size.Small" />
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                Tax is calculated at 14%.
+                            </MudText>
+                        </MudStack>
+                    }
+
                     <MudTable Items="@_invoice.InvoiceLines" Hover="true" Dense="true" Elevation="0"
                               Class="@(IsDraft ? "invoice-lines-table invoice-lines-editable" : "invoice-lines-table")">
                         <ColGroup>
                             <col />
-                            <col style="width: 26%;" />
-                            <col style="width: 120px;" />
-                            <col style="width: 18%;" />
-                            <col style="width: 16%;" />
+                            <col style="width: 20%;" />
+                            <col style="width: 15%;" />
+                            @if (_showTax)
+                            {
+                                <col style="width: 8%;" />
+                                <col style="width: 10%;" />
+                            }
+                            <col style="width: 80px;" />
+                            <col style="width: 10%;" />
                             @if (IsDraft)
                             {
-                                <col style="width: 48px;" />
+                                <col style="width: 40px;" />
                             }
                         </ColGroup>
                         <HeaderContent>
-                            <MudTh>Description</MudTh>
-                            <MudTh>Rate</MudTh>
-                            <MudTh Style="text-align:right">Qty</MudTh>
-                            <MudTh Style="text-align:right">Unit price</MudTh>
-                            <MudTh Style="text-align:right">Amount</MudTh>
+                            <MudTh Style="padding-left:10px;">Description</MudTh>
+                            <MudTh>@(_showTax ? "Rate (Excl)" : "Rate")</MudTh>
+                            <MudTh>Rate type</MudTh>
+                            @if (_showTax)
+                            {
+                                <MudTh Style="text-align:right">Tax</MudTh>
+                                <MudTh Style="text-align:right">Incl</MudTh>
+                            }
+                            <MudTh Style="text-align:right;padding-right:10px;">Qty</MudTh>
+                            <MudTh Style="text-align:right;padding-right:0px;">Total</MudTh>
                             @if (IsDraft)
                             {
                                 <MudTh></MudTh>
                             }
                         </HeaderContent>
                         <RowTemplate Context="line">
-                            <MudTd DataLabel="Description">
+                            <MudTd DataLabel="Description" Style="padding-left:10px;">
                                 @if (IsDraft)
                                 {
                                     <MudTextField T="string" Required="true" RequiredError="Required."
@@ -192,30 +216,99 @@
                             <MudTd DataLabel="Rate">
                                 @if (IsDraft)
                                 {
-                                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
-                                        <MudSelect T="int?" Required="true" RequiredError="Choose a rate."
-                                                   Value="@line.RateSelection"
-                                                   ValueChanged="@(v => OnRateChanged(line, v))">
-                                            @foreach (var rate in _rates)
+                                    <MudStack Spacing="0">
+                                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                            @if (!_showTax)
                                             {
-                                                <MudSelectItem T="int?" Value="@rate.ID">@RateLabel(rate)</MudSelectItem>
+                                                <MudNumericField T="decimal?" Value="line.BilledRateIncl"
+                                                                 ValueChanged="@(v => OnRateAmountChanged(line, v))"
+                                                                 Min="0" Margin="Margin.Dense" Required="true"
+                                                                 RequiredError="Required."
+                                                                 Format="@($"N{_minorUnits}")" Class="pa-0"
+                                                                   />
                                             }
-                                        </MudSelect>
-                                        <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small"
-                                                       aria-label="Add a rate" OnClick="@(() => AddRateAsync(line))" />
+                                            else
+                                            {
+                                                <MudNumericField T="decimal?" Value="LineExcl(line)"
+                                                                 ValueChanged="@(v => OnExclChanged(line, v))"
+                                                                 Min="0" Margin="Margin.Dense" Required="true"
+                                                                 RequiredError="Required."
+                                                                 Format="@($"N{_minorUnits}")" Class="pa-0" />
+                                            }
+                                            <QuickRateMenu Rates="_rates"
+                                                           ContactId="_invoice.IssuedToContactID"
+                                                           CompanyId="_invoice.CompanyID"
+                                                           RateTypes="_rateTypes"
+                                                           Companies="_companies"
+                                                           Contacts="_contacts"
+                                                           CurrencySymbol="@_currencySymbol"
+                                                           MinorUnits="_minorUnits"
+                                                           OnPick="@(rate => OnQuickRateAsync(line, rate))"
+                                                           OnNew="@((short? _) => AddRateAsync(line))" />
+                                        </MudStack>
+                                        @if (line.TenantRateID is int sourceId)
+                                        {
+                                            //<MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                            //    From @RateLabelFor(sourceId)
+                                            //</MudText>
+                                            @if (SourceRateMismatch(line))
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Error">
+                                                    Source rate differs from this line.
+                                                </MudText>
+                                            }
+                                        }
                                     </MudStack>
                                 }
                                 else
                                 {
-                                    <MudText>@RateLabelFor(line.TenantRateID)</MudText>
+                                    @if (!_showTax)
+                                    {
+                                        <MudText>@Money(line.BilledRateIncl ?? 0m)</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText>@Money(LineExcl(line) ?? 0m)</MudText>
+                                    }
                                 }
                             </MudTd>
 
-                            <MudTd DataLabel="Qty" Style="text-align:right">
+                            <MudTd DataLabel="Rate type" >
+                                @if (IsDraft)
+                                {
+                                    <MudSelect T="short?" Clearable="true"
+                                               Value="line.RateTypeID"
+                                               ValueChanged="@(v => OnRateTypeChanged(line, v))">
+                                        @foreach (var rateType in _rateTypes.OrderBy(type => type.Key))
+                                        {
+                                            <MudSelectItem T="short?" Value="@((short)rateType.Key)">
+                                                @rateType.Value
+                                            </MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                                else
+                                {
+                                    <MudText>@RateTypeName(line.RateTypeID)</MudText>
+                                }
+                            </MudTd>
+
+                            @if (_showTax)
+                            {
+                                <MudTd DataLabel="Tax" Style="text-align:right">
+                                    <MudText>@Money(LineTax(line))</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Incl" Style="text-align:right">
+                                    <MudText>@Money(line.BilledRateIncl ?? 0m)</MudText>
+                                </MudTd>
+                            }
+
+                            <MudTd DataLabel="Qty" Style="text-align:right;padding-right:0px;padding-left:5px;">
                                 @if (IsDraft)
                                 {
                                     <MudNumericField T="decimal?" Min="@(0.01m)" Step="@(0.25m)"
                                                      Required="true" RequiredError="Required."
+                                                     Margin="Margin.Dense" Class="pa-0"
                                                      @bind-Value="line.Qty" />
                                 }
                                 else
@@ -224,26 +317,13 @@
                                 }
                             </MudTd>
 
-                            <MudTd DataLabel="Unit price" Style="text-align:right">
-                                @if (IsDraft)
-                                {
-                                    <MudNumericField T="decimal?" Min="0" Format="@($"N{_minorUnits}")"
-                                                     Required="true" RequiredError="Required."
-                                                     @bind-Value="line.BilledRateIncl" />
-                                }
-                                else
-                                {
-                                    <MudText>@Money(line.BilledRateIncl ?? 0m)</MudText>
-                                }
-                            </MudTd>
-
-                            <MudTd DataLabel="Amount" Style="text-align:right">
+                            <MudTd DataLabel="Total" Style="text-align:right;padding-right:0px;">
                                 <MudText>@Money(LineAmount(line))</MudText>
                             </MudTd>
 
                             @if (IsDraft)
                             {
-                                <MudTd Style="text-align:right">
+                                <MudTd Style="text-align:right;padding-right:2px;">
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                                    aria-label="Remove line" OnClick="@(() => RemoveLine(line))" />
                                 </MudTd>
@@ -327,11 +407,16 @@
     private IReadOnlyDictionary<int, string> _contacts = new Dictionary<int, string>();
     private IReadOnlyDictionary<int, string> _companies = new Dictionary<int, string>();
     private IReadOnlyDictionary<int, string> _rateTypes = new Dictionary<int, string>();
+    private Dictionary<short, int> _rateTypeMaxQty = new();
     private List<TenantRate> _rates = new();
 
     private string _currencyCode = "ZAR";
     private string _currencySymbol = "R";
     private int _minorUnits = 2;
+
+    private bool _issuerTaxRegistered;
+    private bool _showTax;
+    private decimal _taxRate;
 
     private MudForm? _form;
     private int _loadedId = -1;
@@ -426,7 +511,7 @@
                 _invoice = new Invoice
                 {
                     InvoiceDate = DateTime.Today,
-                    InvoiceLines = new() { new InvoiceLine() }
+                    InvoiceLines = new() { new InvoiceLine { BilledRateIncl = 0m } }
                 };
 
                 await PrefillNumberAsync();
@@ -544,14 +629,18 @@
         var contactsTask = ContactService.GetLookupAsync();
         var companiesTask = CompanyService.GetLookupAsync();
         var rateTypesTask = RateTypeService.GetLookupAsync();
+        var rateTypeListTask = RateTypeService.GetAllAsync();
         var ratesTask = TenantRateService.GetAllAsync();
         var settingsTask = TenantSettingService.GetForTenantAsync();
 
-        await Task.WhenAll(contactsTask, companiesTask, rateTypesTask, ratesTask, settingsTask);
+        await Task.WhenAll(
+            contactsTask, companiesTask, rateTypesTask, rateTypeListTask,
+            ratesTask, settingsTask);
 
         var contacts = await contactsTask;
         var companies = await companiesTask;
         var rateTypes = await rateTypesTask;
+        var rateTypeList = await rateTypeListTask;
         var rates = await ratesTask;
         var settings = await settingsTask;
 
@@ -560,20 +649,42 @@
         _rateTypes = rateTypes.Successful && rateTypes.Value != null ? rateTypes.Value : _rateTypes;
         _settings = settings.Successful ? settings.Value : _settings;
 
-        if (rates.Successful && rates.Value is TenantRate[] list)
-            _rates = OrderRates(list);
-    }
+        if (rateTypeList.Successful && rateTypeList.Value is RateType[] types)
+        {
+            _rateTypeMaxQty = types
+                .Where(type => type.Active != false)
+                .ToDictionary(type => (short)type.ID, type => type.MaxQty ?? 0);
 
-    private List<TenantRate> OrderRates(IEnumerable<TenantRate> rates) => rates
-        .OrderBy(r => _rateTypes.TryGetValue(r.RateTypeID, out var type) ? type : string.Empty)
-        .ThenBy(r => r.DefaultRate)
-        .ToList();
+            if (!rateTypes.Successful || rateTypes.Value is null)
+            {
+                _rateTypes = types
+                    .Where(type => type.Active != false)
+                    .ToDictionary(
+                        type => (int)type.ID,
+                        type => type.Name ?? $"Rate type {type.ID}");
+            }
+        }
+
+        if (rates.Successful && rates.Value is TenantRate[] list)
+            _rates = list.ToList();
+
+        var tenantService = Services.GetService(typeof(ITenantService)) as ITenantService;
+        var session = Services.GetService(typeof(UserSession)) as UserSession;
+        var tenant = tenantService is not null && session?.TenantId > 0
+            ? await tenantService.GetOneAsync(session.TenantId)
+            : Result<Tenant?>.Success(null);
+
+        _issuerTaxRegistered = tenant.Successful
+            && tenant.Value?.Company?.TaxSchemeID is not null;
+        _showTax = _issuerTaxRegistered;
+        _taxRate = _settings?.DefaultTaxRate ?? 0m;
+    }
 
     private async Task RefreshRatesAsync()
     {
         var result = await TenantRateService.GetAllAsync();
         if (result.Successful && result.Value is TenantRate[] list)
-            _rates = OrderRates(list);
+            _rates = list.ToList();
     }
 
     private void ApplyCurrency()
@@ -596,50 +707,210 @@
     private string RateLabel(TenantRate rate)
     {
         var type = _rateTypes.TryGetValue(rate.RateTypeID, out var name) ? name : "Rate";
-        var label = $"{type} — {Money(rate.DefaultRate ?? 0m)}";
-        return rate.Active == false ? $"{label} (inactive)" : label;
+        var label = $"{type} · {Money(rate.RateIncl ?? 0m)}";
+        return rate.Active == false ? $"{label} (archived)" : label;
     }
 
     private string RateLabelFor(int rateId)
     {
-        if (rateId <= 0)
-            return "—";
-
         var rate = _rates.FirstOrDefault(r => r.ID == rateId);
-        return rate is null ? $"Rate #{rateId}" : RateLabel(rate);
+        return rate is null ? $"rate #{rateId}" : RateLabel(rate);
     }
 
-    private void OnRateChanged(InvoiceLine line, int? rateId)
+    private string RateLabelFor(InvoiceLine line)
     {
-        line.RateSelection = rateId;
+        var type = line.RateTypeID is short id && _rateTypes.TryGetValue(id, out var name)
+            ? name
+            : "Rate";
+        return $"{type} · {Money(line.BilledRateIncl ?? 0m)}";
+    }
 
-        if (rateId is int id)
+    private void OnExclChanged(InvoiceLine line, decimal? value)
+    {
+        if (value is null)
         {
-            var rate = _rates.FirstOrDefault(r => r.ID == id);
-            if (rate?.DefaultRate is decimal price)
-                line.BilledRateIncl = price;
+            line.BilledRateIncl = null;
+            line.TenantRateID = null;
+            return;
         }
+
+        line.BilledRateIncl = TaxMath.GrossFromNet(
+            value.Value, LineTaxRate(line), _minorUnits);
+        line.TenantRateID = null;
+    }
+
+
+    private bool SourceRateMismatch(InvoiceLine line)
+    {
+        if (line.TenantRateID is not int sourceId)
+            return false;
+
+        var rate = _rates.FirstOrDefault(candidate => candidate.ID == sourceId);
+        return rate is null
+            || rate.RateTypeID != line.RateTypeID
+            || rate.RateIncl != line.BilledRateIncl;
+    }
+
+    /// <summary>
+    /// The user changed the price. The line is now a custom price, so it is no
+    /// longer "the captured rate"; clearing the source keeps the red-flag rule
+    /// meaningful.
+    /// </summary>
+    private void OnRateAmountChanged(InvoiceLine line, decimal? value)
+    {
+        line.BilledRateIncl = value;
+        line.TenantRateID = null;
+    }
+
+    private async Task OnQuickRateAsync(InvoiceLine line, TenantRate rate)
+    {
+        line.TenantRateID = rate.ID;
+        line.RateTypeID = rate.RateTypeID;
+        line.BilledRateIncl = rate.RateIncl;
+
+        await PrefillQuantityAsync(line, overwrite: line.Qty is null or <= 0);
+    }
+
+    private async Task OnRateTypeChanged(InvoiceLine line, short? rateTypeId)
+    {
+        if (line.RateTypeID == rateTypeId)
+            return;
+
+        line.RateTypeID = rateTypeId;
+
+        if (line.TenantRateID is int sourceId)
+        {
+            var source = _rates.FirstOrDefault(rate => rate.ID == sourceId);
+            if (source is null || source.RateTypeID != rateTypeId)
+                line.TenantRateID = null;
+        }
+
+        if (rateTypeId is short type)
+            await PrefillQuantityAsync(line, overwrite: true);
+    }
+
+    private async Task PrefillQuantityAsync(InvoiceLine line, bool overwrite)
+    {
+        if (line.RateTypeID is not short rateTypeId)
+            return;
+
+        if (!overwrite && line.Qty is > 0)
+            return;
+
+        decimal? qty = null;
+
+        try
+        {
+            var result = await InvoiceService.LastQuantityAsync(
+                _invoice.IssuedToContactID, _invoice.CompanyID, rateTypeId, _invoice.ID);
+
+            if (result.Successful)
+                qty = result.Value;
+        }
+        catch
+        {
+            // History is a convenience; a failed lookup falls back to MaxQty/1.
+        }
+
+        if (qty is null
+            && _rateTypeMaxQty.TryGetValue(rateTypeId, out int maxQty)
+            && maxQty > 0)
+        {
+            qty = maxQty;
+        }
+
+        line.Qty = qty ?? 1m;
+    }
+
+    private decimal LineTaxRate(InvoiceLine line)
+        => line.ID > 0
+            ? line.TaxRate ?? 0m
+            : (_showTax ? _taxRate : 0m);
+
+    private string RateTypeName(short? rateTypeId)
+        => rateTypeId is short id && _rateTypes.TryGetValue(id, out var name)
+            ? name
+            : "—";
+
+    private decimal LineTax(InvoiceLine line)
+        => TaxMath.TaxFromInclusive(
+            line.BilledRateIncl ?? 0m, LineTaxRate(line), _minorUnits);
+
+    private decimal? LineExcl(InvoiceLine line)
+    {
+        if (line.BilledRateIncl is not decimal incl)
+            return null;
+
+        var tax = TaxMath.TaxFromInclusive(incl, LineTaxRate(line), _minorUnits);
+        return TaxMath.NetFromInclusive(incl, tax);
+    }
+
+
+
+    private void OnContactChanged(int? contactId)
+    {
+        if (_invoice.IssuedToContactID == (contactId ?? 0))
+            return;
+
+        _invoice.IssuedToContactSelection = contactId;
+        ClearSourceRates();
+    }
+
+    private void OnCompanyChanged(int? companyId)
+    {
+        if (_invoice.CompanyID == companyId)
+            return;
+
+        _invoice.CompanyID = companyId;
+        ClearSourceRates();
+    }
+
+    /// <summary>
+    /// A price stays on the line; only the claim that it came from a captured rate
+    /// is dropped when the client changes.
+    /// </summary>
+    private void ClearSourceRates()
+    {
+        foreach (var line in _invoice.InvoiceLines)
+            line.TenantRateID = null;
     }
 
     private async Task AddRateAsync(InvoiceLine line)
     {
+        var parameters = new DialogParameters
+        {
+            [nameof(RateDialog.RateTypeID)] = line.RateTypeID,
+            [nameof(RateDialog.ContactID)] = _invoice.IssuedToContactID > 0
+                ? _invoice.IssuedToContactID
+                : null,
+            [nameof(RateDialog.CompanyID)] = _invoice.CompanyID,
+            [nameof(RateDialog.RateIncl)] = line.BilledRateIncl,
+            [nameof(RateDialog.RateTypes)] = _rateTypes,
+            [nameof(RateDialog.Companies)] = _companies,
+            [nameof(RateDialog.Contacts)] = _contacts,
+            [nameof(RateDialog.ShowTax)] = _showTax,
+            [nameof(RateDialog.TaxRate)] = _taxRate,
+            [nameof(RateDialog.MinorUnits)] = _minorUnits,
+            [nameof(RateDialog.CurrencySymbol)] = _currencySymbol
+        };
+
         var dialog = await DialogService.ShowAsync<RateDialog>(
             "Add a rate",
-            new DialogParameters(),
-            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
 
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: TenantRate rate })
         {
             await RefreshRatesAsync();
-            OnRateChanged(line, rate.ID);
+            await OnQuickRateAsync(line, rate);
         }
     }
 
     private void AddLine()
     {
-        _invoice.InvoiceLines.Add(new InvoiceLine());
+        _invoice.InvoiceLines.Add(new InvoiceLine { BilledRateIncl = 0m });
     }
 
     private void RemoveLine(InvoiceLine line)

@@ -26,7 +26,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
     [Fact]
     public void FormRejectsARateWithNoRateType()
     {
-        var model = new TenantRate { DefaultRate = 100m };
+        var model = new TenantRate { RateIncl = 100m };
 
         var cut = Render<TenantRateForm>(p => p.Add(x => x.Model, model));
 
@@ -42,7 +42,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
     [Fact]
     public void RateTypeStartsEmptyRatherThanZero()
     {
-        var model = new TenantRate { DefaultRate = 100m };
+        var model = new TenantRate { RateIncl = 100m };
 
         var cut = Render<TenantRateForm>(p => p.Add(x => x.Model, model));
 
@@ -61,27 +61,9 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
     }
 
     [Fact]
-    public void FormRejectsAnEndDateBeforeTheStartDate()
-    {
-        var model = new TenantRate
-        {
-            RateTypeID = 1,
-            DefaultRate = 100m,
-            StartDate = new DateTime(2026, 6, 1),
-            EndDate = new DateTime(2026, 5, 1)
-        };
-
-        var cut = Render<TenantRateForm>(p => p.Add(x => x.Model, model));
-
-        Assert.False(cut.Instance.Validate());
-        cut.WaitForAssertion(
-            () => Assert.Contains("end date must be on or after the start date", cut.Markup));
-    }
-
-    [Fact]
     public void FormRejectsANegativeRate()
     {
-        var model = new TenantRate { RateTypeID = 1, DefaultRate = -1m };
+        var model = new TenantRate { RateTypeID = 1, RateIncl = -1m };
 
         var cut = Render<TenantRateForm>(p => p.Add(x => x.Model, model));
 
@@ -90,22 +72,12 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
     }
 
     [Fact]
-    public void NewRateStartsTodayWhenTheHostLeavesTheDateUnset()
-    {
-        var model = new TenantRate { RateTypeID = 1, DefaultRate = 100m };
-
-        Render<TenantRateForm>(p => p.Add(x => x.Model, model));
-
-        Assert.Equal(DateTime.Today, model.StartDate);
-    }
-
-    [Fact]
     public void HostSuppliedLookupsReplaceTheRegisteredServices()
     {
         var rateTypes = new FakeRateTypeService();
         Services.AddSingleton<IRateTypeService>(rateTypes);
 
-        var model = new TenantRate { RateTypeID = 1, DefaultRate = 100m };
+        var model = new TenantRate { RateTypeID = 1, RateIncl = 100m };
 
         var cut = Render<TenantRateForm>(p => p
             .Add(x => x.Model, model)
@@ -118,7 +90,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
     }
 
     [Fact]
-    public void SectionListsRatesWithTheirLookupNames()
+    public void SectionListsCurrentRatesWithTheirLookupNames()
     {
         var rates = new FakeTenantRateService();
         rates.Rates.Add(new TenantRate
@@ -127,19 +99,18 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
             TenantID = 19,
             RateTypeID = 1,
             CompanyID = 4,
-            DefaultRate = 450m,
+            RateIncl = 450m,
             Active = true,
-            StartDate = new DateTime(2026, 1, 1)
+            CapturedOn = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc)
         });
         rates.Rates.Add(new TenantRate
         {
             ID = 2,
             TenantID = 19,
             RateTypeID = 2,
-            DefaultRate = 900m,
+            RateIncl = 900m,
             Active = false,
-            StartDate = new DateTime(2025, 1, 1),
-            EndDate = new DateTime(2025, 12, 31)
+            CapturedOn = new DateTime(2025, 1, 1, 10, 0, 0, DateTimeKind.Utc)
         });
 
         Services.AddSingleton<ITenantRateService>(rates);
@@ -157,9 +128,17 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
         cut.WaitForAssertion(() => Assert.Contains("Hourly", cut.Markup));
 
         Assert.Contains("Flamingo", cut.Markup);
-        Assert.Contains("Daily", cut.Markup);
-        Assert.Contains("Inactive", cut.Markup);
         Assert.Contains("450.00", cut.Markup);
+
+        // Archived rates are a separate view.
+        Assert.DoesNotContain("Daily", cut.Markup);
+
+        cut.FindAll("button")
+           .First(button => button.TextContent.Contains("Archived"))
+           .Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Daily", cut.Markup));
+        Assert.Contains("Archived", cut.Markup);
     }
 
     [Fact]
@@ -169,7 +148,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
 
         var cut = Render<TenantRateSection>();
 
-        cut.WaitForAssertion(() => Assert.Contains("No rates yet", cut.Markup));
+        cut.WaitForAssertion(() => Assert.Contains("No current rates yet", cut.Markup));
 
         cut.FindAll("button")
            .First(button => button.TextContent.Contains("Add rate"))
@@ -186,7 +165,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
 
         var cut = Render<TenantRateSection>();
 
-        cut.WaitForAssertion(() => Assert.Contains("No rates yet", cut.Markup));
+        cut.WaitForAssertion(() => Assert.Contains("No current rates yet", cut.Markup));
 
         cut.FindAll("button")
            .First(button => button.TextContent.Contains("Add rate"))
@@ -198,17 +177,17 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
             .GetValue(cut.Instance)!;
 
         model.RateTypeID = 1;
-        model.DefaultRate = 250m;
+        model.RateIncl = 250m;
 
         cut.FindAll("button")
-           .First(button => button.TextContent.Contains("Save rate"))
+           .First(button => button.TextContent.Contains("Capture rate"))
            .Click();
 
         cut.WaitForAssertion(() => Assert.Single(rates.Created));
 
         Assert.Equal(1, rates.Created[0].RateTypeID);
-        Assert.Equal(250m, rates.Created[0].DefaultRate);
-        Assert.Contains("Saved rates", cut.Markup);
+        Assert.Equal(250m, rates.Created[0].RateIncl);
+        Assert.Contains("250.00", cut.Markup);
     }
 
     private void RegisterSectionServices(FakeTenantRateService rates)
@@ -277,7 +256,8 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
         }
 
         public Task<Result<RateType?>> GetOneAsync(int id) => throw new NotSupportedException();
-        public Task<Result<RateType[]>> GetAllAsync() => throw new NotSupportedException();
+        public Task<Result<RateType[]>> GetAllAsync()
+            => Task.FromResult(Result<RateType[]>.Success(Array.Empty<RateType>()));
     }
 
     private sealed class FakeCompanyService : ICompanyService

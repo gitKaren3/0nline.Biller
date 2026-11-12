@@ -26,7 +26,8 @@
         @if (ShowTaxSettings)
         {
             <MudItem sm="12" md="4" lg="3" Class="mt-3 d-flex align-center">
-                <MudSwitch T="bool" @bind-Value="Model.TaxRegistered"
+                <MudSwitch T="bool" Value="Model.TaxRegistered"
+                           ValueChanged="OnTaxRegisteredChanged"
                            Label="Registered for tax" Color="Color.Primary" />
             </MudItem>
 
@@ -275,6 +276,17 @@
         TaxScheme.SalesTax => "Sales Tax",
         _ => "Other"
     };
+
+    private void OnTaxRegisteredChanged(bool value)
+    {
+        Model.TaxRegistered = value;
+
+        // The first choice should already be the country's usual scheme. The user
+        // can still change it; this only prevents a pointless empty required field.
+        if (value && Model.theTaxScheme is null)
+            Model.theTaxScheme = TaxSchemeDefaults.ForCountry(
+                Model.CountryCode ?? Model.AddressCountry);
+    }
 
     protected override void OnParametersSet()
     {

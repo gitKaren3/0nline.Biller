@@ -1,0 +1,145 @@
+@using System.Linq.Expressions
+@using _0nline.Biller.DL.Contract.Models
+
+@* A tax-inclusive amount. When tax is visible the same value can be edited from
+   either side: Excl updates Incl, Incl updates Excl, and the tax is always derived.
+   The saved value is always the inclusive amount. *@
+
+@if (!ShowTax)
+{
+    <MudNumericField T="decimal?" Value="_incl" ValueChanged="OnInclChanged"
+                     Label="@Label" Min="0" Required="@Required"
+                     RequiredError="@RequiredError" Disabled="@Disabled"
+                     For="@For" Format="@FormatString" Class="@Class" />
+}
+else if (Compact)
+{
+    <MudStack Spacing="0">
+        <MudStack Row="true" Spacing="1">
+            <MudNumericField T="decimal?" Value="_excl" ValueChanged="OnExclChanged"
+                             Label="Excl" Min="0" Margin="Margin.Dense" Disabled="@Disabled"
+                             Format="@FormatString" Class="@Class" />
+            <MudNumericField T="decimal?" Value="_incl" ValueChanged="OnInclChanged"
+                             Label="Incl" Min="0" Margin="Margin.Dense" Disabled="@Disabled"
+                             Required="@Required" RequiredError="@RequiredError"
+                             For="@For" Format="@FormatString" Class="@Class" />
+        </MudStack>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@TaxCaption</MudText>
+    </MudStack>
+}
+else
+{
+    <MudGrid Spacing="1">
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="decimal?" Value="_excl" ValueChanged="OnExclChanged"
+                             Label="@($"{Label} (Excl)")" Min="0" Disabled="@Disabled"
+                             Margin="Margin.Dense" Format="@FormatString" Class="@Class" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="decimal?" Value="_tax" Label="Tax" ReadOnly="true"
+                             Disabled="@Disabled" Margin="Margin.Dense" Format="@FormatString" Class="@Class" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudNumericField T="decimal?" Value="_incl" ValueChanged="OnInclChanged"
+                             Label="@($"{Label} (Incl)")" Min="0" Required="@Required"
+                             RequiredError="@RequiredError" Disabled="@Disabled"
+                             Margin="Margin.Dense" For="@For" Format="@FormatString" Class="@Class" />
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    /// <summary>The amount saved by the caller. It is always tax-inclusive.</summary>
+    [Parameter] public decimal? Value { get; set; }
+
+    [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
+
+    /// <summary>Whether the tax breakdown is shown. When false the amount is one field.</summary>
+    [Parameter] public bool ShowTax { get; set; }
+
+    /// <summary>Percent, not a fraction. Zero means no tax.</summary>
+    [Parameter] public decimal TaxRate { get; set; }
+
+    [Parameter] public int MinorUnits { get; set; } = 2;
+
+    [Parameter] public string CurrencySymbol { get; set; } = "R";
+
+    [Parameter] public string Label { get; set; } = "Rate";
+
+    /// <summary>Use the two-field layout in a table cell.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public bool Required { get; set; }
+
+    [Parameter] public string RequiredError { get; set; } = "Required.";
+
+    /// <summary>Optional model expression for DataAnnotations blur validation.</summary>
+    [Parameter] public Expression<Func<decimal?>>? For { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    private decimal? _incl;
+    private decimal? _excl;
+    private decimal? _tax;
+    private decimal _lastTaxRate;
+    private int _lastMinorUnits = -1;
+
+    private string FormatString => "N" + Math.Clamp(MinorUnits, 0, 4);
+
+    private string TaxCaption
+        => _tax is decimal tax
+            ? $"Tax {TaxRate.ToString("0.##")}% · {Money(tax)}"
+            : $"Tax {TaxRate.ToString("0.##")}%";
+
+    private string Money(decimal value)
+        => $"{CurrencySymbol}{value.ToString(FormatString)}";
+
+    protected override void OnParametersSet()
+    {
+        // Recompute when the caller changes the amount or the tax context. When the
+        // caller merely echoed an edit we made, the values already match and the
+        // user's exact input is preserved.
+        if (Value == _incl && TaxRate == _lastTaxRate && MinorUnits == _lastMinorUnits)
+            return;
+
+        _incl = Value;
+        _lastTaxRate = TaxRate;
+        _lastMinorUnits = MinorUnits;
+        RecalculateFromInclusive();
+    }
+
+    private async Task OnInclChanged(decimal? value)
+    {
+        _incl = value;
+        RecalculateFromInclusive();
+        await ValueChanged.InvokeAsync(_incl);
+    }
+
+    private async Task OnExclChanged(decimal? value)
+    {
+        _excl = value;
+        _incl = value is decimal net
+            ? TaxMath.GrossFromNet(net, TaxRate, MinorUnits)
+            : null;
+        _tax = value is null
+            ? null
+            : TaxMath.TaxFromNet(value.Value, TaxRate, MinorUnits);
+
+        await ValueChanged.InvokeAsync(_incl);
+    }
+
+    private void RecalculateFromInclusive()
+    {
+        if (_incl is not decimal incl)
+        {
+            _excl = null;
+            _tax = null;
+            return;
+        }
+
+        _tax = TaxMath.TaxFromInclusive(incl, TaxRate, MinorUnits);
+        _excl = TaxMath.NetFromInclusive(incl, _tax.Value);
+    }
+}

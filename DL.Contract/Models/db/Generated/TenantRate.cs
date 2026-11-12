@@ -35,7 +35,7 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         [Editable(true)]
         [Required(ErrorMessage = "Required")]
-        public decimal? DefaultRate { get; set; }
+        public decimal? RateIncl { get; set; }
 
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         [Editable(true)]
@@ -43,10 +43,11 @@ namespace _0nline.Biller.DL.Contract.Models.db
 
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         [Editable(true)]
-        public DateTime? StartDate { get; set; }
+        public DateTime? CapturedOn { get; set; }
 
         [Editable(true)]
-        public DateTime? EndDate { get; set; }
+        [StringLength(500, ErrorMessage = "Max 500 characters")]
+        public string? Note { get; set; }
 
         // Navigation properties
         public Tenant? Tenant { get; set; }

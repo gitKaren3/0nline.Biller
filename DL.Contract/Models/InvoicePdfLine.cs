@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace _0nline.Biller.DL.Contract.Models
 {
     /// <summary>One billed line. The unit price is tax-inclusive.</summary>
@@ -14,6 +16,17 @@ namespace _0nline.Biller.DL.Contract.Models
 
         /// <summary>Tax already contained in <see cref="UnitPrice"/> for this line.</summary>
         public decimal Tax { get; init; }
+
+        /// <summary>
+        /// The tax contained in one unit. Derived from the line total so old snapshots
+        /// that predate this property still render correctly.
+        /// </summary>
+        [JsonIgnore]
+        public decimal UnitTax => Qty == 0m ? 0m : Tax / Qty;
+
+        /// <summary>The unit price with the tax taken out.</summary>
+        [JsonIgnore]
+        public decimal UnitPriceExcl => UnitPrice - UnitTax;
 
         /// <summary>The rate the tax was calculated at, frozen with the line.</summary>
         public decimal TaxRate { get; init; }

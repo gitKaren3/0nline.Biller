@@ -32,5 +32,11 @@ namespace _0nline.Biller.Wasm.Client.DL
         public Task<Result<bool>> InvoiceNumberExistsAsync(string? number, int excludeInvoiceId = 0)
             => GetAndHandleAsync<bool>(
                 $"number-exists?number={Uri.EscapeDataString(number?.Trim() ?? string.Empty)}&id={excludeInvoiceId}");
+
+        public Task<Result<decimal?>> LastQuantityAsync(
+            int contactId, int? companyId, short rateTypeId, int excludeInvoiceId = 0)
+            => GetAndHandleAsync<decimal?>(
+                $"last-qty?contactId={contactId}&companyId={companyId?.ToString() ?? string.Empty}"
+                + $"&rateTypeId={rateTypeId}&excludeId={excludeInvoiceId}");
     }
 }

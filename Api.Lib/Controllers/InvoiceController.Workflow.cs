@@ -67,5 +67,21 @@ namespace _0nline.Biller.Api.Lib
             var result = await BaseService.InvoiceNumberExistsAsync(number, id);
             return Ok(result);
         }
+
+        /// <summary>
+        /// The quantity last used for this contact, company and rate type. Advisory:
+        /// the editor only uses it to prefill a new line.
+        /// </summary>
+        [HttpGet("last-qty")]
+        public async Task<IActionResult> LastQuantity(
+            [FromQuery] int contactId,
+            [FromQuery] int? companyId,
+            [FromQuery] short rateTypeId,
+            [FromQuery] int excludeId = 0)
+        {
+            var result = await BaseService.LastQuantityAsync(
+                contactId, companyId, rateTypeId, excludeId);
+            return Ok(result);
+        }
     }
 }

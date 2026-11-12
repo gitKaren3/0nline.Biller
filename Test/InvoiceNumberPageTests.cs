@@ -131,6 +131,10 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
         public Task<Result<bool>> InvoiceNumberExistsAsync(string? number, int excludeInvoiceId = 0)
             => Task.FromResult(Result<bool>.Success(Taken.Contains(number ?? string.Empty)));
 
+        public Task<Result<decimal?>> LastQuantityAsync(
+            int contactId, int? companyId, short rateTypeId, int excludeInvoiceId = 0)
+            => Task.FromResult(Result<decimal?>.Success(null));
+
         public Task<Result<Invoice?>> GetOneAsync(int id) => throw new NotSupportedException();
         public Task<Result<Invoice[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync()
@@ -202,7 +206,8 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
                 new Dictionary<int, string>()));
 
         public Task<Result<RateType?>> GetOneAsync(int id) => throw new NotSupportedException();
-        public Task<Result<RateType[]>> GetAllAsync() => throw new NotSupportedException();
+        public Task<Result<RateType[]>> GetAllAsync()
+            => Task.FromResult(Result<RateType[]>.Success(Array.Empty<RateType>()));
     }
 
     private sealed class FakeTenantRateService : ITenantRateService

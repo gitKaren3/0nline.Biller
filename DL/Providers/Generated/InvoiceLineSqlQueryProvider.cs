@@ -12,7 +12,7 @@ namespace _0nline.Biller.DL.Providers
             : base(new DbTableDescriptor("InvoiceLine")
             {
                 KeyColumns = new[] { "ID" },
-                EditableColumns = new[] { "InvoiceID", "ContractID", "Description", "Qty", "TenantRateID", "TotalTax", "BilledRateIncl", "TaxSchemeID", "TaxRate", "TaxNote" },
+                EditableColumns = new[] { "InvoiceID", "ContractID", "Description", "Qty", "TenantRateID", "TotalTax", "BilledRateIncl", "TaxSchemeID", "TaxRate", "TaxNote", "RateTypeID" },
                 ActiveColumn = null,
                 LookupLabel = new LookupLabel(new[] { "Description" }, " "),
                 LookupFilter = null

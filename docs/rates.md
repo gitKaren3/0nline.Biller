@@ -1,106 +1,115 @@
 # Billing rates
 
-What a tenant charges, and the rates an invoice line will price against. The table and the
-form existed before 2026-10-31, but nothing hosted the form and it had never been run
-against the live database. This note records what made it usable.
+What a tenant charges, and the captured rates an invoice line can start from. A rate is
+a record of a decision, not a price list that is kept up to date.
 
 ## The table
 
 `TenantRate` is tenant-owned (`TenantID`), so the generated provider scopes all five
 queries — see [`tenancy.md`](tenancy.md) for the scoping rules. `RateType` is global, not
-tenant-scoped: it is a fixed list (Hourly, Daily, Monthly Retainer, …).
+tenant-scoped: it is a fixed list (Hourly, Daily, Monthly Retainer, Service, Ad-hoc, …).
 
 | Column | Notes |
 |---|---|
 | `TenantID` | Stamped from the token; a body value cannot move it |
 | `RateTypeID` | Required; foreign key to the global `RateType` |
 | `CompanyID` / `ContactID` | Optional; set one to price only that client/contact |
-| `DefaultRate` | Required; the standard rate when no company/contact is set |
-| `StartDate` | `date`, not null; the form defaults a new rate to today |
-| `EndDate` | `date`, optional |
-| `Active` | Soft-delete flag; `DeactivateQuery` sets it false |
+| `RateIncl` | Required; the tax-inclusive amount |
+| `CapturedOn` | Required UTC instant, set by the database on insert |
+| `Note` | Optional free-form caption when several rates share a type and scope |
+| `Active` | `true` = current, `false` = archived |
 
-A rate with no client and no contact is the tenant's standard rate. Note that `Active` is
-not derived from the dates: an ended rate keeps `Active = true` until it is removed.
+`StartDate` and `EndDate` were removed on 2026-11-12. There is no effective-date window:
+a rate either applies now or it is archived.
+
+## Captured, not edited
+
+A rate is immutable from capture. There is no update path: `TenantRateService.UpdateAsync`
+returns a validation failure. A mistake is corrected by deleting the row and capturing a
+new one while nothing references it.
+
+`DeleteOrDeactivateAsync` first tries a hard delete. The `InvoiceLine.TenantRateID` foreign
+key is restrictive, so a rate referenced by any line cannot be deleted; the service then
+archives it by setting `Active = false`. Archived rates can never be selected for a new
+line, but the invoices that used them keep rendering.
+
+## How an invoice picks a rate
+
+`TenantRateResolver` is the single rule. It excludes archived rates and applies this scope
+matrix:
+
+| Invoice scope | Eligible rates, highest priority first |
+|---|---|
+| Contact only, no company | Contact-only rate (`CompanyID IS NULL`, `ContactID = contact`) → universal rate (`CompanyID IS NULL`, `ContactID IS NULL`) |
+| Contact + company | Company + contact rate → company-only rate (`CompanyID = company`, `ContactID IS NULL`) → universal rate |
+
+A company-scoped rate is not offered on a private contact invoice. A contact-only rate is
+not offered once a company is involved. `CompanyID` is never inferred from the contact:
+the user must choose the company on the invoice.
+
+Within the same scope, the most recently `CapturedOn` rate wins; `ID` is the deterministic
+tie-break. The quick-rate menu shows the whole eligible shortlist, grouped by rate type and
+ordered by that same priority.
+
+## The invoice line
+
+`InvoiceLine` stores both:
+
+- `RateTypeID` — optional; the category the user chose.
+- `TenantRateID` — optional provenance; the captured rate the price came from.
+
+`BilledRateIncl` is the authoritative price. When `TenantRateID` is set, `RateTypeID` and
+`BilledRateIncl` must still equal that captured row. The invoice service rejects a
+mismatch, because immutable rates mean a mismatch can only be corrupt data. Editing the
+numeric price clears `TenantRateID`; the line is then a custom price. Changing the
+invoice's contact or company clears the source links but keeps the prices.
+
+Selecting a rate type prefills the quantity:
+
+1. the most recent non-draft invoice line for the same contact, same company and the same
+   rate type;
+2. otherwise `RateType.MaxQty` when it is greater than zero;
+3. otherwise `1`.
 
 ## The UI
 
-- `Wasm/Pages/Rates.Page.razor` (`/admin/rates`) — the page, reachable from **Rates** under
-  **My Admin**. It hosts the section and supplies the heading.
-- `Wasm/Components/TenantRateSection.razor` — lists, adds, edits and removes rates. It loads
-  and saves itself, so a host only renders it. `ShowHeading` (default `true`) lets a page
-  supply its own title; the planned Get Started wizard can render it as one step with
-  `ShowHeading="false"`.
-- `Wasm/Components/TenantRateForm.razor` — the fields and their `EditContext`. A host that
-  wants to own the save can render the form alone and call `Validate()` (the same contract
-  as `BankAccountForm`). It also exposes `Disabled` for a host that is saving, and an
-  optional `OnValidSubmit` for Enter-to-save.
+- `Wasm/Pages/Rates.Page.razor` (`/admin/rates`) hosts `TenantRateSection`.
+- `TenantRateSection` lists **Current** and **Archived** views, grouped by rate type with
+  the standard rate first. It captures and removes rates; it does not edit them.
+- `TenantRateForm` is the reusable capture form.
+- `RateDialog` is the invoice editor's in-place capture. It is prefilled with the line's
+  contact, company, rate type and current price.
+- `TaxedAmountField` is the shared inclusive/exclusive amount field. It is the only place
+  that turns an edited Excl or Incl value into the stored inclusive amount.
 
-Lookups are optional parameters. When the host does not pass them, the form loads rate
-types, companies and contacts from the registered services. A host-supplied dictionary
-always wins, and a lookup handed over after the first render is picked up.
+## Tax
 
-### The mandatory rate type
+A rate stores only `RateIncl`. `Tax` is derived with `TaxMath` from the tenant's current
+`TenantSetting.DefaultTaxRate`, so it is never stale data on the rate row. The invoice line
+stores the tax actually charged (`TaxRate`, `TotalTax`).
 
-`RateTypeID` is a non-nullable `short` whose "not chosen" value is `0`, which a
-`MudSelect` renders as the literal "0" and which `[Required]` cannot reject. The
-hand-written partial `TenantRate.cs` adds a nullable view, `RateTypeSelection`, that maps
-`0` to `null` and back. It carries `[Required]`, `[JsonIgnore]` and `[Editable(false)]`:
+When the issuer company is tax-registered, the UI defaults **Show tax** on and displays
+the rate as Excl + Tax. Tax is read-only. When it is not registered, the field is simply
+**Rate**, with no `(Incl)` suffix, and the PDF omits the tax column and tax subtotal.
 
-- the picker starts empty and validates on blur and on submit;
-- the API payload still carries only `rateTypeId`;
-- `DbService` never writes it, and the column stays `NOT NULL`.
+`TaxSchemeDefaults.ForCountry` seeds a sensible first scheme (VAT for South Africa and
+most VAT jurisdictions, Sales Tax for the US, otherwise Other, which prints as "Tax").
+The user can still change it.
 
-## Lookups
+## Migration
 
-- A contact is labelled `Surname, FirstName` (`LookupLabels` in
-  `DL/SqlQueryGenerator.json`). The generator's default was the first text column, which
-  would have shown only the first name.
-- The client and contact pickers exclude the tenant's own profile. The tenant's own
-  `Contact`/`Company` are named by `Tenant.ContactID`/`Tenant.CompanyID`, and
-  `LookupFilters` hides those rows from the lookup. They remain tenant-owned rows; the
-  profile page, attach and purge still see them. See
-  [`tenancy.md`](tenancy.md#the-tenants-own-contact-and-company).
-- Entity pickers sort by label. Rate types keep their table order: they are a curated
-  enum, not a list of rows the tenant created.
+The schema change is `docs/migrations/2026-11-12-rate-capture.sql`:
 
-Both `LookupLabels` and `LookupFilters` are **app-specific** and live in the app's
-generator config, not in the schema or the shared libraries.
-
-## Dates
-
-`StartDate` and `EndDate` are PostgreSQL `date` columns. The generated model exposes them
-as `DateTime?` because the entities double as Blazor models and `MudDatePicker` binds
-`DateTime?`. Npgsql returns `DateOnly`, so `Shared/Db/Service` registers a Dapper handler
-that converts on read, and `DbService` converts a database default read back through
-`RETURNING`. Writes need no conversion; the database casts the parameter to `date`.
-
-The column default is a fixed date, so the form sets a new rate's `StartDate` to today. A
-create through the API that omits it gets the database default.
+- rename `DefaultRate` → `RateIncl`;
+- drop `StartDate` / `EndDate`;
+- add `CapturedOn` and `Note`;
+- add nullable `InvoiceLine.RateTypeID`;
+- make `InvoiceLine.TenantRateID` nullable but keep its restrictive FK;
+- backfill existing line rate types from the rate they referenced;
+- seed the generic `Service` and `Ad-hoc` rate types.
 
 ## Verification
 
-- `dotnet test` on `Z_0nline.Biller.slnx`: 31 tests pass. `Test/TenantRateTests.cs` covers
-  the required rate type, the empty initial picker, the end-before-start rule, the negative
-  rate rule, the start-date default, host-supplied lookups, the list labels, the empty
-  state and a full add → validate → save round trip.
-- `dotnet build` on `Z_0nline.Biller.slnx` and `Z_0nline.Web.slnx`: 0 errors.
-- Throwaway integration probes (not committed) against the live database checked: rate
-  create with and without `StartDate`, `GetAllAsync`, update; and that the client lookups
-  return nothing for a tenant with only its own profile, then exactly the new client after
-  one was created. Their rows were removed afterwards.
-
-## Still to do
-
-- **No invoice UI yet.** `InvoiceLine.TenantRateID` exists, but nothing prices a line
-  against a rate. When it does, the rate on the line should be the one valid at issue time,
-  not a live lookup.
-- **Deactivation is one-way.** A rate removed while an invoice line references it is
-  deactivated (a hard delete is attempted first), and there is no API path to reactivate
-  it. Re-adding a replacement is the intended flow.
-- **`LookupFilters` is raw SQL.** The generator validates that the key is a real table, but
-  not the columns or the expression; a mistake fails at query time, not generation time.
-- **Legacy self-scoped rates.** A rate created before the lookup filter and scoped to the
-  tenant's own company/contact would render without that name. No such rows exist.
-- **Contacts are not narrowed by client.** The contact picker lists every client contact;
-  choosing a company does not filter it to that company's contacts.
+`dotnet test` covers the resolver matrix, archived exclusion, recency, the required rate
+type, the negative-rate rule, host-supplied lookups, the current/archived view, the
+capture round trip, and the inclusive/exclusive tax arithmetic.

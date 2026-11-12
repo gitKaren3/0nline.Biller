@@ -193,6 +193,48 @@ namespace _0nline.Biller.DL.Services
         }
 
         /// <summary>
+        /// The quantity last used for this contact, company and rate type. The editor
+        /// uses it when a line's rate type is chosen; a draft or cancelled invoice is
+        /// not a precedent. Null means there is no history and the caller should fall
+        /// back to the rate type's MaxQty or 1.
+        /// </summary>
+        public async Task<Result<decimal?>> LastQuantityAsync(
+            int contactId, int? companyId, short rateTypeId, int excludeInvoiceId = 0)
+        {
+            if (contactId <= 0 || rateTypeId <= 0)
+                return Result<decimal?>.Success(null);
+
+            var tenantId = RequireTenantId();
+
+            using var conn = Connection;
+            var qty = await conn.ExecuteScalarAsync<decimal?>(
+                @"SELECT il.""Qty""
+                    FROM ""InvoiceLine"" il
+                    JOIN ""Invoice"" i ON i.""ID"" = il.""InvoiceID""
+                   WHERE i.""TenantID"" = @TenantId
+                     AND i.""IssuedToContactID"" = @ContactId
+                     AND i.""CompanyID"" IS NOT DISTINCT FROM @CompanyId
+                     AND i.""InvoiceStatusID"" NOT IN (@Draft, @Cancelled)
+                     AND i.""ID"" <> @ExcludeId
+                     AND il.""RateTypeID"" = @RateTypeId
+                     AND il.""Qty"" > 0
+                   ORDER BY i.""InvoiceDate"" DESC, i.""ID"" DESC, il.""ID"" DESC
+                   LIMIT 1",
+                new
+                {
+                    TenantId = tenantId,
+                    ContactId = contactId,
+                    CompanyId = companyId,
+                    Draft = (short)InvoiceStatus.Draft,
+                    Cancelled = (short)InvoiceStatus.Cancelled,
+                    ExcludeId = excludeInvoiceId,
+                    RateTypeId = rateTypeId
+                });
+
+            return Result<decimal?>.Success(qty);
+        }
+
+        /// <summary>
         /// Creates the invoice and its lines in one transaction. A blank invoice
         /// number gets Biller's default format; a supplied number is kept.
         /// </summary>
@@ -530,9 +572,6 @@ namespace _0nline.Biller.DL.Services
                 if (line.Qty is null or <= 0)
                     return "Every line needs a quantity greater than zero.";
 
-                if (line.TenantRateID <= 0)
-                    return "Every line needs a rate.";
-
                 if (line.BilledRateIncl is null or < 0)
                     return "A billed rate may not be negative.";
 
@@ -596,16 +635,51 @@ namespace _0nline.Biller.DL.Services
                     return "The selected company does not belong to this workspace.";
             }
 
-            var rateIds = lines.Select(line => line.TenantRateID).Distinct().ToArray();
-            if (rateIds.Length > 0)
-            {
-                var validRates = (await conn.QueryAsync<int>(
-                    @"SELECT ""ID"" FROM ""TenantRate""
-                      WHERE ""TenantID"" = @TenantId AND ""ID"" = ANY(@Ids)",
-                    new { TenantId = tenantId, Ids = rateIds })).ToHashSet();
+            // A source rate is optional provenance. When it is present the line must
+            // still equal the captured row: rates are immutable, so a mismatch can
+            // only mean corrupt data or a client that bypassed the editor.
+            var rateTypeIds = lines
+                .Where(line => line.RateTypeID is > 0)
+                .Select(line => line.RateTypeID!.Value)
+                .Distinct()
+                .ToArray();
 
-                if (rateIds.Any(rateId => !validRates.Contains(rateId)))
-                    return "A selected rate does not belong to this workspace.";
+            if (rateTypeIds.Length > 0)
+            {
+                var validTypes = (await conn.QueryAsync<short>(
+                    @"SELECT ""ID"" FROM ""RateType"" WHERE ""ID"" = ANY(@Ids)",
+                    new { Ids = rateTypeIds })).ToHashSet();
+
+                if (rateTypeIds.Any(id => !validTypes.Contains(id)))
+                    return "A line names an unknown rate type.";
+            }
+
+            var sourceRateIds = lines
+                .Where(line => line.TenantRateID is > 0)
+                .Select(line => line.TenantRateID!.Value)
+                .Distinct()
+                .ToArray();
+
+            if (sourceRateIds.Length > 0)
+            {
+                var capturedRates = (await conn.QueryAsync<TenantRate>(
+                    @"SELECT ""ID"", ""RateTypeID"", ""RateIncl""
+                      FROM ""TenantRate""
+                      WHERE ""TenantID"" = @TenantId AND ""ID"" = ANY(@Ids)",
+                    new { TenantId = tenantId, Ids = sourceRateIds }))
+                    .ToDictionary(rate => rate.ID);
+
+                foreach (var line in lines.Where(line => line.TenantRateID is > 0))
+                {
+                    if (!capturedRates.TryGetValue(line.TenantRateID!.Value, out var rate))
+                        return "A selected rate does not belong to this workspace.";
+
+                    if (line.RateTypeID != rate.RateTypeID
+                        || line.BilledRateIncl != rate.RateIncl)
+                    {
+                        return "A line's source rate no longer matches the captured rate.";
+                    }
+                }
             }
 
             return null;
@@ -646,6 +720,7 @@ namespace _0nline.Biller.DL.Services
                     Description = line.Description?.Trim(),
                     Qty = line.Qty,
                     TenantRateID = line.TenantRateID,
+                    RateTypeID = line.RateTypeID,
                     BilledRateIncl = line.BilledRateIncl,
                     TaxSchemeID = (short?)scheme,
                     TaxRate = rate,

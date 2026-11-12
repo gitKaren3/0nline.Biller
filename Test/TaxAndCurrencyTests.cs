@@ -29,6 +29,28 @@ public class TaxAndCurrencyTests
     }
 
     [Theory]
+    [InlineData(100, 15, 2, 115.00)]
+    [InlineData(100, 0, 2, 100.00)]
+    [InlineData(0, 15, 2, 0)]
+    [InlineData(99.99, 14, 2, 113.99)]
+    public void GrossIsNetPlusRoundedTax(
+        decimal net, decimal rate, int minorUnits, decimal expected)
+    {
+        Assert.Equal(expected, TaxMath.GrossFromNet(net, rate, minorUnits));
+    }
+
+    [Fact]
+    public void EditingExclAndInclRoundTripsThroughTheSameTax()
+    {
+        decimal net = 560m;
+        decimal gross = TaxMath.GrossFromNet(net, 15m, 2);
+        decimal tax = TaxMath.TaxFromNet(net, 15m, 2);
+
+        Assert.Equal(gross - net, tax);
+        Assert.Equal(gross, net + tax);
+    }
+
+    [Theory]
     [InlineData("ZAR", "R", 2)]
     [InlineData("USD", "$", 2)]
     [InlineData("JPY", "¥", 0)]
@@ -105,5 +127,16 @@ public class TaxAndCurrencyTests
 
         Assert.Null(company.TaxSchemeID);
         Assert.Null(company.TaxNumber);
+    }
+
+    [Theory]
+    [InlineData("ZA", _0nline.Biller.DL.Contract.Enums.TaxScheme.Vat)]
+    [InlineData("South Africa", _0nline.Biller.DL.Contract.Enums.TaxScheme.Vat)]
+    [InlineData("US", _0nline.Biller.DL.Contract.Enums.TaxScheme.SalesTax)]
+    [InlineData("XX", _0nline.Biller.DL.Contract.Enums.TaxScheme.Other)]
+    public void TaxSchemeDefaultsFollowTheCountry(
+        string country, _0nline.Biller.DL.Contract.Enums.TaxScheme expected)
+    {
+        Assert.Equal(expected, TaxSchemeDefaults.ForCountry(country));
     }
 }
