@@ -20,27 +20,4 @@
     <ProjectReference Include="..\DL\0nline.Biller.DL.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="Controllers\_ControllerGenerator.tt">
-      <Generator>TextTemplatingFileGenerator</Generator>
-      <LastGenOutput>_ControllerGenerator.cs</LastGenOutput>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Update="Controllers\_ControllerGenerator.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>_ControllerGenerator.tt</DependentUpon>
-    </Compile>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Controllers\Generated\" />
-  </ItemGroup>
-
 </Project>

@@ -22,28 +22,4 @@
     <ProjectReference Include="..\DL.Contract\0nline.Biller.DL.Contract.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="DB Model Generator (retired).tt">
-      <LastGenOutput>DB Model Generator (retired).cs</LastGenOutput>
-      <Generator>TextTemplatingFileGenerator</Generator>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Update="DB Model Generator %28retired%29.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>DB Model Generator (retired).tt</DependentUpon>
-    </Compile>
-    <Compile Update="DB Model Generator.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>DB Model Generator.tt</DependentUpon>
-    </Compile>
-  </ItemGroup>
-
 </Project>
