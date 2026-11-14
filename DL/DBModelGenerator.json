@@ -1,12 +1,16 @@
 {
   "OutputDir": "../DL.Contract/Models/db/Generated",
   "Namespace": "_0nline.Biller.DL.Contract.Models.db",
-  "ConnectionString": "host=localhost port=5432 dbname=0nline.Biller user=pilot password=hermes",
+  "ConnectionString": "host=localhost port=5432 dbname=0nline.Biller user=dev-reader password=RVA08CIc^sLFGoDdoc4BE82a",
   "Scope": "public",
   "IncludeAnnotations": "true",
   "Depluralize": "false",
   "TenantTable": "Tenant",
-  "EnumTables": ["Tier", "InvoiceStatus", "TaxScheme"],
+  "EnumTables": [
+    "Tier",
+    "InvoiceStatus",
+    "TaxScheme"
+  ],
   "EnumOutputDir": "../DL.Contract/Enums/Generated",
   "EnumNamespace": "_0nline.Biller.DL.Contract.Enums",
   "LookupOutputDir": "../DL.Contract/Models/db/Lookup/Generated",

@@ -181,14 +181,14 @@ if tenant_table_name:
 
     # The tenant's scope value is its primary key, so the contract needs exactly one.
     cur.execute("""
-        SELECT kcu.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-        WHERE tc.constraint_type = 'PRIMARY KEY'
-          AND tc.table_name = %s
-          AND tc.table_schema = %s;
+        SELECT a.attname
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.contype = 'p'
+          AND t.relname = %s
+          AND n.nspname = %s;
     """, tenant_table)
     if len(cur.fetchall()) != 1:
         fail(f'TenantTable "{tenant_table_name}" must have a single-column primary key')
@@ -204,19 +204,18 @@ if tenant_table_name:
           AND lower(c.column_name) = lower(%s)
           AND NOT EXISTS (
               SELECT 1
-              FROM information_schema.table_constraints tc
-              JOIN information_schema.key_column_usage kcu
-                ON tc.constraint_name = kcu.constraint_name
-               AND tc.table_schema = kcu.table_schema
-              JOIN information_schema.constraint_column_usage ccu
-                ON ccu.constraint_name = tc.constraint_name
-               AND ccu.constraint_schema = tc.constraint_schema
-              WHERE tc.constraint_type = 'FOREIGN KEY'
-                AND tc.table_schema = c.table_schema
-                AND tc.table_name = c.table_name
-                AND lower(kcu.column_name) = lower(c.column_name)
-                AND ccu.table_schema = %s
-                AND ccu.table_name = %s
+              FROM pg_constraint fk
+              JOIN pg_class ft ON ft.oid = fk.conrelid
+              JOIN pg_namespace fn ON fn.oid = ft.relnamespace
+              JOIN pg_class pt ON pt.oid = fk.confrelid
+              JOIN pg_namespace pn ON pn.oid = pt.relnamespace
+              JOIN pg_attribute fa ON fa.attrelid = fk.conrelid AND fa.attnum = ANY(fk.conkey)
+              WHERE fk.contype = 'f'
+                AND fn.nspname = c.table_schema
+                AND ft.relname = c.table_name
+                AND lower(fa.attname) = lower(c.column_name)
+                AND pn.nspname = %s
+                AND pt.relname = %s
           )
         ORDER BY 1;
     """, (tenant_column_hint, tenant_table[1], tenant_table[0]))
@@ -242,14 +241,14 @@ for table_name, table_schema in tables:
     # Collect PKs
     pk_columns = set()
     cur.execute("""
-        SELECT kcu.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-        WHERE tc.constraint_type = 'PRIMARY KEY'
-          AND tc.table_name = %s
-          AND tc.table_schema = %s;
+        SELECT a.attname
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.contype = 'p'
+          AND t.relname = %s
+          AND n.nspname = %s;
     """, (table_name, table_schema))
     for row in cur.fetchall():
         pk_columns.add(row[0])
@@ -272,17 +271,18 @@ for table_name, table_schema in tables:
     fk_map = {}
     fk_target_schema = {}
     cur.execute("""
-        SELECT kcu.column_name, ccu.table_schema, ccu.table_name, ccu.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-        JOIN information_schema.constraint_column_usage ccu
-          ON ccu.constraint_name = tc.constraint_name
-         AND ccu.constraint_schema = tc.constraint_schema
-        WHERE tc.constraint_type = 'FOREIGN KEY'
-          AND kcu.table_name = %s
-          AND kcu.table_schema = %s;
+        SELECT fa.attname, pn.nspname, pt.relname, pa.attname
+        FROM pg_constraint fk
+        JOIN pg_class ft ON ft.oid = fk.conrelid
+        JOIN pg_namespace fn ON fn.oid = ft.relnamespace
+        JOIN pg_class pt ON pt.oid = fk.confrelid
+        JOIN pg_namespace pn ON pn.oid = pt.relnamespace
+        CROSS JOIN LATERAL unnest(fk.conkey, fk.confkey) WITH ORDINALITY AS u(fk_attnum, ref_attnum, ord)
+        JOIN pg_attribute fa ON fa.attrelid = fk.conrelid AND fa.attnum = u.fk_attnum
+        JOIN pg_attribute pa ON pa.attrelid = fk.confrelid AND pa.attnum = u.ref_attnum
+        WHERE fk.contype = 'f'
+          AND ft.relname = %s
+          AND fn.nspname = %s;
     """, (table_name, table_schema))
     for fk_col, pk_schema, pk_table, pk_col in cur.fetchall():
         fk_map[fk_col] = (pk_table, pk_col)
@@ -515,14 +515,14 @@ def _sanitize_member(name: str) -> str:
 def _get_pk_columns(tname, tschema):
     cols = set()
     cur.execute("""
-        SELECT kcu.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-        WHERE tc.constraint_type = 'PRIMARY KEY'
-          AND tc.table_name = %s
-          AND tc.table_schema = %s;
+        SELECT a.attname
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.contype = 'p'
+          AND t.relname = %s
+          AND n.nspname = %s;
     """, (tname, tschema))
     for row in cur.fetchall():
         cols.add(row[0])

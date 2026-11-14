@@ -84,15 +84,16 @@ for table_name, table_schema in tables:
     # Primary key: every column, in schema order. A composite key is a fact about
     # the table, not something the generator may collapse to its first column.
     cur.execute("""
-        SELECT kcu.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-        WHERE tc.constraint_type = 'PRIMARY KEY'
-          AND tc.table_name = %s
-          AND tc.table_schema = %s
-        ORDER BY kcu.ordinal_position;
+        SELECT a.attname
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS u(attnum, ord)
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
+        WHERE c.contype = 'p'
+          AND t.relname = %s
+          AND n.nspname = %s
+        ORDER BY u.ord;
     """, (table_name, table_schema))
     pk_columns = [row[0] for row in cur.fetchall()]
     pk_column = pk_columns[0] if pk_columns else ""
