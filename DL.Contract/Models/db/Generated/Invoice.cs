@@ -11,7 +11,7 @@ using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus;
 ///  for custom modifications update the generator CAUTIOUSLY
 namespace _0nline.Biller.DL.Contract.Models.db
 {
-    public partial class Invoice : IDbEntity
+    public partial class Invoice : IDbEntity, IDbTenantScoped
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

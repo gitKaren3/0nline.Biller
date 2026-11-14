@@ -7,34 +7,36 @@ loader is described there under
 
 ## Scoped tables
 
-Tenant scoping is per entity: a table is isolated only when its generated provider puts
-`@TenantId` into the SQL. In `DL/Providers/Generated/`:
+Tenant scoping is per entity: a table is isolated when its generated model implements
+`IDbTenant` (the root) or `IDbTenantScoped` (a row with a foreign key to it). The two
+markers come from `"TenantTable": "Tenant"` in `DL/DBModelGenerator.json`; the store
+composes the predicate, so the providers no longer carry one. In `DL.Contract/Models/db/Generated/`:
 
-| Table | `TenantID` column | Provider scoped | Exposed as |
-|---|---|---|---|
-| `Invoice` | yes | all five queries | `api/biller/invoice` |
-| `Contact` | yes | all five queries | `api/biller/contact` |
-| `Company` | yes | all five queries | `api/biller/company` |
-| `Image` | yes | all five queries | `api/biller/image` |
-| `TenantRate` | yes | all five queries | `api/biller/tenantrate` |
-| `BankAccount` | yes | all five queries | `api/biller/bankaccount` |
-| `TenantSetting` | yes | all five queries | `api/biller/tenantsetting` (get/save one row) |
-| `Tenant` | no — it *is* the tenant | no | `api/biller/tenant` |
-| `Tier` | no | no | `api/biller/tier` |
-| `TaxScheme` | no | no | no controller — generated enum |
-| `RateType` | no | no | no controller |
-| `InvoiceStatus` | no | no | `api/biller/invoicestatus` |
-| `InvoiceLine` | no | no | read through invoice detail (no controller) |
-| `InvoiceSnapshot` | no | no | `api/biller/invoicesnapshot` (hand-written; public PDF by token) |
-| `CompanyContactLink` | no | no | no controller |
-| `File` | yes | no controller yet | no controller |
-| `test` | no | no | no controller — stray |
+| Table | Marker | Exposed as |
+|---|---|---|
+| `Invoice` | `IDbTenantScoped` (FK `TenantID`) | `api/biller/invoice` |
+| `Contact` | `IDbTenantScoped` (FK `TenantID`) | `api/biller/contact` |
+| `Company` | `IDbTenantScoped` (FK `TenantID`) | `api/biller/company` |
+| `Image` | `IDbTenantScoped` (FK `TenantID`) | `api/biller/image` |
+| `TenantRate` | `IDbTenantScoped` (FK `TenantID`) | `api/biller/tenantrate` |
+| `BankAccount` | `IDbTenantScoped` (FK `TenantID`) | `api/biller/bankaccount` |
+| `TenantSetting` | `IDbTenantScoped` (FK `TenantID`) | `api/biller/tenantsetting` (get/save one row) |
+| `File` | `IDbTenantScoped` (FK `TenantID`) | no controller yet |
+| `Tenant` | `IDbTenant` (scope = `ID`) | `api/biller/tenant` |
+| `Tier` | — | `api/biller/tier` |
+| `TaxScheme` | — | no controller — generated enum |
+| `RateType` | — | no controller |
+| `InvoiceStatus` | — | `api/biller/invoicestatus` |
+| `InvoiceLine` | — (reached through invoice) | read through invoice detail (no controller) |
+| `InvoiceSnapshot` | — (reached through invoice or token) | `api/biller/invoicesnapshot` (hand-written; public PDF by token) |
+| `CompanyContactLink` | — (reached through company) | no controller |
+| `test` | — | no controller — stray |
 
 `Tier` and `RateType` are global by design: a lookup table that is the same for every
 tenant is not a leak. `TierController` is anonymous because it is public, read-only
 data: `ITierService` is `IDLReadableService<Tier>` only, so the generator emits
-`GetAll`/`GetLookup` (plus the inherited `GetById`) and no write actions. `Tenant` needs
-no filter to read its own row; it needs a rule about *which* row, which lives in the
+`GetAll`/`GetLookup` (plus the inherited `GetById`) and no write actions. `Tenant` is
+filtered by `ID` once a claim exists; the bootstrap rule about *which* row lives in the
 service (`GetTenantByUserIdAsync`, `WHERE "UserId" = @UserId`) and in `TenantController`
 (the caller's `sub` must equal `Tenant.UserId`).
 
@@ -102,16 +104,17 @@ the caller's own `sub`. The client no longer uses any of them.
 
 ## Writes
 
-`BillerBaseService` opts into `DbService.EnforceTenantScope`:
+`BillerBaseService` needs no tenancy switch: the generated models carry the markers, and
+`DbStore` applies them.
 
-- On insert, a `TenantID` property is stamped from the token and any body value is
-  overwritten. `ImageService` already did this explicitly; the generic path now covers
-  `Contact` and `Company` too.
-- On update, the generated `SET` and the `WHERE` both use the token's tenant id. A row
-  with `TenantID = NULL` matches nothing; a row owned by another tenant matches nothing.
-  A zero-row update becomes `KeyNotFoundException`, so it cannot be reported as saved.
-- On deactivate, the tenant predicate is appended to the provider's query, which does not
-  include one by default.
+- On insert, the declared foreign key is stamped from the token and any body value is
+  overwritten. This covers `Contact` and `Company` as well as the tables `ImageService`
+  used to stamp explicitly.
+- On update, the `SET` and the `WHERE` both use the token's tenant id. A row owned by
+  another tenant matches nothing, and a zero-row update becomes `KeyNotFoundException`,
+  so it cannot be reported as saved.
+- On deactivate, the tenant predicate is composed by the store; the provider does not
+  include one.
 
 The invariant is `TenantID IS NOT NULL` for rows that belong to a tenant. The
 `docs/migrations/2026-10-26-tenant-ownership.sql` migration backfills the tenant's own
@@ -121,9 +124,11 @@ unique `Tenant.UserId` index; `docs/migrations/2026-10-26-tenant-not-null.sql` t
 normal state.
 
 Writes to `Tenant` itself cannot use a `TenantID` predicate: the row has no such column.
-They are guarded by `Tenant.UserId = @sub` in `TenantService`, and the nested
-`Contact`/`Company` navigation properties are stripped before the update — otherwise
-`SaveNavigationPropertiesAsync` would persist a client-supplied graph.
+The store scopes a `Tenant` read or delete by `ID` once a claim exists, but an update
+before the claim does is still guarded by `Tenant.UserId = @sub` in `TenantService`.
+The nested `Contact`/`Company` navigation properties are stripped before the update —
+otherwise `SaveNavigationPropertiesAsync` would persist a client-supplied graph. The
+store also strips any navigation whose type is a tenant root, for every entity.
 
 ## The child tables
 

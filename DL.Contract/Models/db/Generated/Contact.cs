@@ -8,7 +8,7 @@ using _0nline.Shared.Db.Contract.Interfaces;
 ///  for custom modifications update the generator CAUTIOUSLY
 namespace _0nline.Biller.DL.Contract.Models.db
 {
-    public partial class Contact : IDbEntity
+    public partial class Contact : IDbEntity, IDbTenantScoped
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

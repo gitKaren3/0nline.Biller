@@ -5,6 +5,7 @@
   "Scope": "public",
   "IncludeAnnotations": "true",
   "Depluralize": "false",
+  "TenantTable": "Tenant",
   "EnumTables": ["Tier", "InvoiceStatus", "TaxScheme"],
   "EnumOutputDir": "../DL.Contract/Enums/Generated",
   "EnumNamespace": "_0nline.Biller.DL.Contract.Enums",

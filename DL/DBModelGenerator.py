@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import sys
 
 # Load config
 base_dir = os.path.dirname(__file__)
@@ -17,6 +18,17 @@ connection_string = config["ConnectionString"]
 scope = config["Scope"]
 Depluralize = config.get("Depluralize", "false").lower() == "true"
 add_validation_annotations = config.get("IncludeAnnotations", "false").lower() == "true"
+
+# TenantTable is optional. A database with a tenant root names the table that *is*
+# the tenant (Biller: "Tenant"); that model implements IDbTenant, and every table
+# with a foreign key to it implements IDbTenantScoped. A database without one - the
+# membership/Auth database, for example - leaves the setting out: a warning is
+# printed and no tenant markers are emitted. A named table that does not exist is a
+# configuration error, never a silent fallback, because generating unscoped models
+# is how a scoped table stops being scoped.
+tenant_table_setting = config.get("TenantTable")
+tenant_table_name = str(tenant_table_setting).strip() if tenant_table_setting else None
+tenant_table = None
 
 def _cfg(*keys, default=None):
     for k in keys:
@@ -140,6 +152,88 @@ cur.execute("""
     WHERE table_schema NOT IN ('pg_catalog','information_schema');
 """)
 tables = cur.fetchall()
+
+def fail(message: str) -> None:
+    """Abort generation before writing anything. A misconfigured tenant table must
+    not produce a directory of plausible-looking, silently unscoped models."""
+    sys.stderr.write(f"DBModelGenerator: error: {message}\n")
+    try:
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+    sys.exit(1)
+
+if tenant_table_name:
+    matches = [t for t in tables if t[0] == tenant_table_name]
+    if not matches:
+        fail(f'TenantTable "{tenant_table_name}" was configured but no such table exists')
+
+    if len(matches) > 1:
+        preferred = [t for t in matches if t[1] == scope]
+        if len(preferred) != 1:
+            schemas = ", ".join(sorted(t[1] for t in matches))
+            fail(f'TenantTable "{tenant_table_name}" is ambiguous: found in schemas '
+                 f'{schemas}; set "Scope" to the intended schema')
+        tenant_table = preferred[0]
+    else:
+        tenant_table = matches[0]
+
+    # The tenant's scope value is its primary key, so the contract needs exactly one.
+    cur.execute("""
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+          AND tc.table_name = %s
+          AND tc.table_schema = %s;
+    """, tenant_table)
+    if len(cur.fetchall()) != 1:
+        fail(f'TenantTable "{tenant_table_name}" must have a single-column primary key')
+
+    # The old rule was the column name. Warn when a column that still looks like the
+    # scope column has no foreign key: without the FK the model cannot be marked, and
+    # the row would silently fall back to being unscoped.
+    tenant_column_hint = f"{tenant_table[0]}ID"
+    cur.execute("""
+        SELECT c.table_schema || '.' || c.table_name
+        FROM information_schema.columns c
+        WHERE c.table_schema NOT IN ('pg_catalog','information_schema')
+          AND lower(c.column_name) = lower(%s)
+          AND NOT EXISTS (
+              SELECT 1
+              FROM information_schema.table_constraints tc
+              JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+               AND tc.table_schema = kcu.table_schema
+              JOIN information_schema.constraint_column_usage ccu
+                ON ccu.constraint_name = tc.constraint_name
+               AND ccu.constraint_schema = tc.constraint_schema
+              WHERE tc.constraint_type = 'FOREIGN KEY'
+                AND tc.table_schema = c.table_schema
+                AND tc.table_name = c.table_name
+                AND lower(kcu.column_name) = lower(c.column_name)
+                AND ccu.table_schema = %s
+                AND ccu.table_name = %s
+          )
+        ORDER BY 1;
+    """, (tenant_column_hint, tenant_table[1], tenant_table[0]))
+    orphans = [row[0] for row in cur.fetchall()]
+    if orphans:
+        sys.stderr.write(
+            f'DBModelGenerator: warning: {", ".join(orphans)} have a '
+            f'"{tenant_column_hint}" column but no foreign key to '
+            f'"{tenant_table_name}", so they will not be marked IDbTenantScoped. '
+            "Add the foreign key, or mark the model in a hand-written partial if the "
+            "row is deliberately not tenant-owned.\n")
+else:
+    sys.stderr.write(
+        "DBModelGenerator: warning: no TenantTable configured; no model will be "
+        "marked IDbTenant or IDbTenantScoped. This is expected for a database "
+        "without a tenant root (the membership/Auth database).\n")
+
 count = 0
 for table_name, table_schema in tables:
     class_name = get_class_name(table_name)
@@ -172,21 +266,27 @@ for table_name, table_schema in tables:
     for row in cur.fetchall():
         identity_columns.add(row[0])
 
-    # Foreign keys
+    # Foreign keys. The referenced schema is kept alongside the table so a FK to
+    # "Tenant" only counts when it points at the configured tenant table, not at a
+    # same-named table in another schema.
     fk_map = {}
+    fk_target_schema = {}
     cur.execute("""
-        SELECT kcu.column_name, ccu.table_name, ccu.column_name
+        SELECT kcu.column_name, ccu.table_schema, ccu.table_name, ccu.column_name
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage kcu
           ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
         JOIN information_schema.constraint_column_usage ccu
           ON ccu.constraint_name = tc.constraint_name
+         AND ccu.constraint_schema = tc.constraint_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
           AND kcu.table_name = %s
           AND kcu.table_schema = %s;
     """, (table_name, table_schema))
-    for fk_col, pk_table, pk_col in cur.fetchall():
+    for fk_col, pk_schema, pk_table, pk_col in cur.fetchall():
         fk_map[fk_col] = (pk_table, pk_col)
+        fk_target_schema[fk_col] = pk_schema
 
     # Computed/generated columns
     computed_columns = set()
@@ -208,6 +308,15 @@ for table_name, table_schema in tables:
     lookup_table = table_name in enum_table_names
     table_ns = lookup_ns if lookup_table else ns
     table_output_dir = lookup_output_dir if lookup_table else output_dir
+
+    # The tenant root is the row a tenant *is*. Every table with a foreign key to it
+    # is a row a tenant *owns*. Both are facts the database declares, so neither is
+    # inferred from a column or table name.
+    is_tenant_table = tenant_table is not None and (table_name, table_schema) == tenant_table
+    is_tenant_scoped = tenant_table is not None and not is_tenant_table and any(
+        pk_table == tenant_table[0] and fk_target_schema.get(fk_col) == tenant_table[1]
+        for fk_col, (pk_table, _) in fk_map.items()
+    )
 
     # A FK to a lookup table gets a typed view so callers can write
     # `invoice.theInvoiceStatus == InvoiceStatus.Draft`. The stored column stays
@@ -237,8 +346,15 @@ for table_name, table_schema in tables:
     class_code.append("///  for custom modifications update the generator CAUTIOUSLY")
     class_code.append(f"namespace {table_ns}")
     class_code.append("{")
-    entity_interface = "IDbLookupEntity" if lookup_table else "IDbEntity"
-    class_code.append(f"    {scope} partial class {class_name} : {entity_interface}")
+    # A model can be more than one of these at once: a tenant-owned lookup table is
+    # both IDbLookupEntity and IDbTenantScoped. The tenant root is never also scoped.
+    entity_interfaces = ["IDbLookupEntity" if lookup_table else "IDbEntity"]
+    if is_tenant_table:
+        entity_interfaces.append("IDbTenant")
+    elif is_tenant_scoped:
+        entity_interfaces.append("IDbTenantScoped")
+    class_code.append(
+        f"    {scope} partial class {class_name} : {', '.join(entity_interfaces)}")
     class_code.append("    {")
 
     # Columns

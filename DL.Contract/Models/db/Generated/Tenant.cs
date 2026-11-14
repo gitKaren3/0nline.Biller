@@ -11,7 +11,7 @@ using TierKind = _0nline.Biller.DL.Contract.Enums.Tier;
 ///  for custom modifications update the generator CAUTIOUSLY
 namespace _0nline.Biller.DL.Contract.Models.db
 {
-    public partial class Tenant : IDbEntity
+    public partial class Tenant : IDbEntity, IDbTenant
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
