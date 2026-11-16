@@ -9,6 +9,7 @@ using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
+using _0nline.Shared.Db.Contract.Exceptions;
 using _0nline.Shared.Db.Contract.Interfaces;
 using _0nline.Shared.Location;
 using Dapper;
@@ -386,6 +387,13 @@ namespace _0nline.Biller.DL.Services
                 await AdvanceInvoiceCounterAsync(conn, tran, invoice.InvoiceNumber);
 
                 tran.Commit();
+            }
+            catch (DbConcurrencyException ex)
+            {
+                // Someone saved this invoice (or its tenant counter) after it was read.
+                // The version moved, so the UPDATE matched nothing and nothing landed.
+                tran.Rollback();
+                return Result<Invoice>.Failure(ErrorCode.Conflict, ex.Message);
             }
             catch
             {

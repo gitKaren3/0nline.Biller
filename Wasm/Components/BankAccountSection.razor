@@ -274,7 +274,10 @@ else
         AccountType = account.AccountType,
         SwiftCode = account.SwiftCode,
         IsDefault = account.IsDefault,
-        Active = account.Active
+        Active = account.Active,
+        // The store matches this in the UPDATE predicate; a clone without it would be
+        // refused as a conflict on every save.
+        Version = account.Version
     };
 
     /// <summary>Shows enough of the number to identify the account, not enough to reuse it.</summary>

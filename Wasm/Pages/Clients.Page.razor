@@ -297,6 +297,9 @@
         Phone = client.Phone,
         BillingContactID = client.BillingContactID,
         Active = client.Active,
+        // Carried over, not copied by value: the store matches this in the UPDATE
+        // predicate. A clone that drops it saves as version 0 and is refused.
+        Version = client.Version,
         BillingContact = client.BillingContact is null ? new Contact() : new Contact
         {
             ID = client.BillingContact.ID,
@@ -305,7 +308,8 @@
             FirstName = client.BillingContact.FirstName,
             Surname = client.BillingContact.Surname,
             Email = client.BillingContact.Email,
-            CellPhone = client.BillingContact.CellPhone
+            CellPhone = client.BillingContact.CellPhone,
+            Version = client.BillingContact.Version
         }
     };
 

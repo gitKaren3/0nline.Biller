@@ -1,7 +1,9 @@
 ﻿using _0nline.Biller.DL.Contract.Models;
+using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
+using _0nline.Shared.Db.Contract.Exceptions;
 using _0nline.Shared.Db.Contract.Interfaces;
 using _0nline.Shared.Db.Service;
 using Dapper;
@@ -45,8 +47,18 @@ namespace _0nline.Biller.DL.Services.Base
         protected new async Task<Result<T>> UpdateAsync(T entity)
         {
             T[] entities = {entity};
-            int count = await base.UpdateAsync(entities);
-            return count > 0 ? Result<T>.Success(entity) : Result<T>.None();
+            try
+            {
+                int count = await base.UpdateAsync(entities);
+                return count > 0 ? Result<T>.Success(entity) : Result<T>.None();
+            }
+            catch (DbConcurrencyException ex)
+            {
+                // The row exists but is no longer at the version the caller read, so the
+                // UPDATE matched nothing. A conflict, not a server error: the caller
+                // reloads and re-applies.
+                return Result<T>.Failure(ErrorCode.Conflict, ex.Message);
+            }
         }
 
         protected async Task<Result<T?>> DeleteOrDeactivateAsync(int id)
