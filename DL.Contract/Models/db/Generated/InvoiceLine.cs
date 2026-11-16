@@ -11,7 +11,7 @@ using TaxSchemeKind = _0nline.Biller.DL.Contract.Enums.TaxScheme;
 ///  for custom modifications update the generator CAUTIOUSLY
 namespace _0nline.Biller.DL.Contract.Models.db
 {
-    public partial class InvoiceLine : IDbEntity
+    public partial class InvoiceLine : IDbEntity, IDbAuditable
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -62,6 +62,16 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [Editable(true)]
         [ForeignKey("RateType")]
         public short? RateTypeID { get; set; }
+
+        [ConcurrencyCheck]
+        [Editable(false)]
+        public int Version { get; set; } = 0;
+
+        [Editable(false)]
+        public DateTime LastModifiedOn { get; set; } = DateTime.MinValue;
+
+        [Editable(false)]
+        public long? LastModifiedBy { get; set; }
 
         // Strongly typed views of lookup foreign keys
         [NotMapped]

@@ -6,6 +6,11 @@
   "IncludeAnnotations": "true",
   "Depluralize": "false",
   "TenantTable": "Tenant",
+  "ConcurrencyColumn": "Version",
+  "AuditColumns": {
+    "ModifiedOn": "LastModifiedOn",
+    "ModifiedBy": "LastModifiedBy"
+  },
   "EnumTables": [
     "Tier",
     "InvoiceStatus",

@@ -11,7 +11,7 @@ using TierKind = _0nline.Biller.DL.Contract.Enums.Tier;
 ///  for custom modifications update the generator CAUTIOUSLY
 namespace _0nline.Biller.DL.Contract.Models.db
 {
-    public partial class Tenant : IDbEntity, IDbTenant
+    public partial class Tenant : IDbEntity, IDbTenant, IDbAuditable
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -37,6 +37,16 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         [Editable(true)]
         public bool? Active { get; set; }
+
+        [ConcurrencyCheck]
+        [Editable(false)]
+        public int Version { get; set; } = 0;
+
+        [Editable(false)]
+        public DateTime LastModifiedOn { get; set; } = DateTime.MinValue;
+
+        [Editable(false)]
+        public long? LastModifiedBy { get; set; }
 
         // Strongly typed views of lookup foreign keys
         [NotMapped]

@@ -233,6 +233,54 @@ else:
         "marked IDbTenant or IDbTenantScoped. This is expected for a database "
         "without a tenant root (the membership/Auth database).\n")
 
+# ---------------------------------------------------------------------------
+# Optimistic concurrency and audit stamps
+# ---------------------------------------------------------------------------
+# The columns are named in config, never sniffed, and a model is only marked when the
+# database actually has them. The schema is the source of truth here (DATABASE FIRST),
+# so a table whose migration has not added the columns yet must not emit a
+# [ConcurrencyCheck] that DbStore would then write into SQL against a column that does
+# not exist.
+#
+#   ConcurrencyColumn  the [ConcurrencyCheck] token DbStore increments in the statement
+#   AuditColumns       ModifiedOn/ModifiedBy, stamped by DbStore through IDbAuditable
+#   AuditExclude       tables that carry the columns for some other reason
+#
+# A table opts in by having the columns, so the migration decides which tables
+# participate and a new table is not audited until its migration says so.
+concurrency_column = (config.get("ConcurrencyColumn") or "").strip() or None
+audit_columns_cfg = config.get("AuditColumns") or {}
+audit_modified_on = (audit_columns_cfg.get("ModifiedOn") or "").strip() or None
+audit_modified_by = (audit_columns_cfg.get("ModifiedBy") or "").strip() or None
+audit_exclude = {str(t).strip() for t in (config.get("AuditExclude") or [])}
+
+def _audit_members(table_name, column_types):
+    """Whether this table participates, validating the column types first.
+
+    A mismatch is a configuration error, not a silent fallback: a LastModifiedOn of the
+    wrong CLR type would not satisfy IDbAuditable, and a non-integer version would make
+    the store's `col = col + 1` meaningless.
+    """
+    if table_name in audit_exclude:
+        return False, False
+
+    auditable = audit_modified_on in column_types and audit_modified_by in column_types
+    versioned = concurrency_column in column_types
+
+    if auditable:
+        if map_sql_type(column_types[audit_modified_on]) != "DateTime":
+            fail(f'{table_name}."{audit_modified_on}" must be a timestamp column: '
+                 "IDbAuditable declares a DateTime")
+        if map_sql_type(column_types[audit_modified_by]) != "long":
+            fail(f'{table_name}."{audit_modified_by}" must be bigint: '
+                 "IDbAuditable declares a long? because the claim is a long")
+    if versioned:
+        if map_sql_type(column_types[concurrency_column]) not in ("int", "long", "short"):
+            fail(f'{table_name}."{concurrency_column}" must be an integer column: '
+                 'the store advances it with "col" = "col" + 1')
+
+    return auditable, versioned
+
 count = 0
 for table_name, table_schema in tables:
     class_name = get_class_name(table_name)
@@ -300,6 +348,18 @@ for table_name, table_schema in tables:
     for row in cur.fetchall():
         computed_columns.add(row[0])
 
+    # Column names and types are needed before the class declaration: the audit and
+    # version markers, and the CLR types they impose, are decided here rather than per
+    # property.
+    cur.execute("""
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = %s AND table_schema = %s;
+    """, (table_name, table_schema))
+    column_types = {name: data_type for name, data_type in cur.fetchall()}
+
+    is_auditable, has_version = _audit_members(table_name, column_types)
+
     # Build class
     class_code = []
     append_class_code = []
@@ -353,6 +413,8 @@ for table_name, table_schema in tables:
         entity_interfaces.append("IDbTenant")
     elif is_tenant_scoped:
         entity_interfaces.append("IDbTenantScoped")
+    if is_auditable:
+        entity_interfaces.append("IDbAuditable")
     class_code.append(
         f"    {scope} partial class {class_name} : {', '.join(entity_interfaces)}")
     class_code.append("    {")
@@ -371,18 +433,39 @@ for table_name, table_schema in tables:
         is_pk = col_name in pk_columns
         is_fk = col_name in fk_map
         has_default = column_default is not None
+        is_version_column = has_version and col_name == concurrency_column
+        is_modified_on = is_auditable and col_name == audit_modified_on
+        is_modified_by = is_auditable and col_name == audit_modified_by
+        is_metadata = is_version_column or is_modified_on or is_modified_by
 
         # Do not mess with the nullability markers, this is for Blazor and default values. If you want to make a property required, use the [Required] annotation.
         is_nullable_type = (add_validation_annotations or has_default or is_nullable_field) 
         if is_required and (is_pk or is_fk):
             is_nullable_type = False
+
+        # The audit and version members are fixed by the contract, so the heuristics
+        # above do not apply: IDbAuditable declares a non-nullable DateTime and a
+        # nullable long, and a version is never nullable.
+        if is_version_column or is_modified_on:
+            is_nullable_type = False
+        elif is_modified_by:
+            is_nullable_type = True
+
         nullable_marker = "?" if is_nullable_type else ""
 
         # Annotations
         if is_pk:
             class_code.append("        [Key]")
 
-        if col_name in pk_columns:
+        if is_version_column:
+            # Matched in the UPDATE predicate and incremented by the statement itself,
+            # never assigned from an entity value.
+            class_code.append("        [ConcurrencyCheck]")
+            class_code.append("        [Editable(false)]")
+        elif is_modified_on or is_modified_by:
+            # Written by the store from the request context, never from the body.
+            class_code.append("        [Editable(false)]")
+        elif col_name in pk_columns:
             if col_name in identity_columns:
                 class_code.append("        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]")
                 class_code.append("        [Editable(false)]")
@@ -428,7 +511,8 @@ for table_name, table_schema in tables:
                 lookup_view_code.append("        }")
                 lookup_view_code.append("")
 
-        if add_validation_annotations:
+        if add_validation_annotations and not (
+                is_version_column or is_modified_on or is_modified_by):
             if is_required and not is_pk and not has_default:
                 class_code.append('        [Required(ErrorMessage = "Required")]')
             if cs_type == "string" and char_max_len and char_max_len > 0:

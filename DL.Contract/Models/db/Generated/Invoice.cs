@@ -11,7 +11,7 @@ using InvoiceStatusKind = _0nline.Biller.DL.Contract.Enums.InvoiceStatus;
 ///  for custom modifications update the generator CAUTIOUSLY
 namespace _0nline.Biller.DL.Contract.Models.db
 {
-    public partial class Invoice : IDbEntity, IDbTenantScoped
+    public partial class Invoice : IDbEntity, IDbTenantScoped, IDbAuditable
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -57,6 +57,16 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [Editable(true)]
         [Required(ErrorMessage = "Required")]
         public short? CurrencyMinorUnits { get; set; }
+
+        [ConcurrencyCheck]
+        [Editable(false)]
+        public int Version { get; set; } = 0;
+
+        [Editable(false)]
+        public DateTime LastModifiedOn { get; set; } = DateTime.MinValue;
+
+        [Editable(false)]
+        public long? LastModifiedBy { get; set; }
 
         // Strongly typed views of lookup foreign keys
         [NotMapped]

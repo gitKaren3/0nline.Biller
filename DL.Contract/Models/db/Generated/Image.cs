@@ -8,7 +8,7 @@ using _0nline.Shared.Db.Contract.Interfaces;
 ///  for custom modifications update the generator CAUTIOUSLY
 namespace _0nline.Biller.DL.Contract.Models.db
 {
-    public partial class Image : IDbEntity, IDbTenantScoped
+    public partial class Image : IDbEntity, IDbTenantScoped, IDbAuditable
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -32,6 +32,16 @@ namespace _0nline.Biller.DL.Contract.Models.db
         [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         [Editable(true)]
         public bool? Public { get; set; }
+
+        [ConcurrencyCheck]
+        [Editable(false)]
+        public int Version { get; set; } = 0;
+
+        [Editable(false)]
+        public DateTime LastModifiedOn { get; set; } = DateTime.MinValue;
+
+        [Editable(false)]
+        public long? LastModifiedBy { get; set; }
 
         // Navigation properties
         public Tenant? Tenant { get; set; }

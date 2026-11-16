@@ -50,6 +50,16 @@ Which tables are isolated and which are not is in [`docs/tenancy.md`](docs/tenan
 The shared mechanism — the claim, the middleware, the opt-in provider rule — is in
 `Workspace/docs/tenancy.md`. Read it before touching a query provider or an update path.
 
+## Concurrency and audit
+
+Which tables carry `Version`/`LastModifiedOn`/`LastModifiedBy`, how the generator
+decides, and what is still outstanding is in [`docs/concurrency.md`](docs/concurrency.md).
+The shared mechanism is in `Shared/docs/db-layers.md`.
+
+**The one rule:** an entity passed to `UpdateAsync` must carry the `Version` it was
+loaded with. A `new T { ... }` or field-by-field clone that omits it saves as version 0
+and is refused as a conflict.
+
 ## Tests
 
 xUnit + bUnit. All test classes inherit `MudTestContext` (`Test/Base/`), which stubs MudBlazor JSInterop. Render components with `Render<T>()`.
