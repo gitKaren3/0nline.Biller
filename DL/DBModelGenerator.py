@@ -16,6 +16,15 @@ os.makedirs(output_dir, exist_ok=True)
 ns = config["Namespace"]
 connection_string = config["ConnectionString"]
 scope = config["Scope"]
+
+# The C# access modifier. "Scope" is the database schema ("public"), which used to
+# double as the modifier; that only worked by coincidence. A library that keeps its
+# entities internal sets this to "internal" so a model carrying a password hash is
+# not part of the assembly's public surface.
+access_modifier = (config.get("AccessModifier") or "public").strip()
+if access_modifier not in ("public", "internal"):
+    sys.stderr.write('DBModelGenerator: error: AccessModifier must be "public" or "internal"\n')
+    sys.exit(1)
 Depluralize = config.get("Depluralize", "false").lower() == "true"
 add_validation_annotations = config.get("IncludeAnnotations", "false").lower() == "true"
 
@@ -416,7 +425,7 @@ for table_name, table_schema in tables:
     if is_auditable:
         entity_interfaces.append("IDbAuditable")
     class_code.append(
-        f"    {scope} partial class {class_name} : {', '.join(entity_interfaces)}")
+        f"    {access_modifier} partial class {class_name} : {', '.join(entity_interfaces)}")
     class_code.append("    {")
 
     # Columns

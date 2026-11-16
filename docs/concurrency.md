@@ -57,10 +57,11 @@ accidental.
 
 ## Left to do
 
-1. **Membership/Auth database.** `User` and `UserSubscription` are hand-maintained
-   (`Auth/Service/db/Base`); adding `IDbAuditable` needs a partial plus the columns, and
-   `AuthModelContractTests` must stay green. Not started, and lower value: that database
-   is not tenant-scoped and is written mostly by `AuthService`.
+Nothing blocking. The Membership/Auth database participates for `User` only
+(`Shared/Auth/db/migrations/003-user-concurrency-and-audit.sql`): profile writes map a
+conflict to `Result.Conflict`, and the login bookkeeping writes drop a losing write rather
+than fail the sign-in. Every other membership table is raw SQL or composite-key, so it
+carries no version. See `Shared/docs/db-layers.md` § Auth.
 
 Cancellation and transient retry are done in the shared store — an ambient request token
 and dialect-classified retry; see `Shared/docs/db-layers.md` § "Cancellation and transient
