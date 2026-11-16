@@ -52,9 +52,12 @@ The shared mechanism — the claim, the middleware, the opt-in provider rule —
 
 ## Concurrency and audit
 
-Which tables carry `Version`/`LastModifiedOn`/`LastModifiedBy`, how the generator
-decides, and what is still outstanding is in [`docs/concurrency.md`](docs/concurrency.md).
-The shared mechanism is in `Shared/docs/db-layers.md`.
+Whether a table carries `Version` / `LastModifiedOn` / `LastModifiedBy` is a fact of the
+schema — query it (see `Shared/docs/db-layers.md`, "Which tables participate") rather than
+trusting a list. Why some tables are deliberately left out, the one rule for entities
+passed to `UpdateAsync`, and what is still outstanding are in
+[`docs/concurrency.md`](docs/concurrency.md). The shared mechanism is in
+`Shared/docs/db-layers.md`.
 
 **The one rule:** an entity passed to `UpdateAsync` must carry the `Version` it was
 loaded with. A `new T { ... }` or field-by-field clone that omits it saves as version 0

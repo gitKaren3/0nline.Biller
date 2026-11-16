@@ -277,7 +277,7 @@ namespace _0nline.Biller.DL.Services
             return null;
         }
 
-        private class MutableTenantContext : ITenantContext
+        private class MutableTenantContext : ITenantContext, IRequestCancellation
         {
             private readonly ITenantContext _inner;
             public int? OverrideTenantId { get; set; }
@@ -292,6 +292,11 @@ namespace _0nline.Biller.DL.Services
             public long? UserId => OverrideUserId ?? _inner.UserId;
             public string AppId => _inner.AppId;
             public bool IsTenantAssigned => TenantId.HasValue;
+
+            // The wrapper changes who the row belongs to, not how long the request
+            // lives, so the caller's cancellation still applies.
+            public CancellationToken RequestAborted =>
+                (_inner as IRequestCancellation)?.RequestAborted ?? CancellationToken.None;
         }
     }
 }

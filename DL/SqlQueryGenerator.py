@@ -169,7 +169,11 @@ for table_name, table_schema in tables:
 
     class_code = []
     class_code.append(f"using {modelsns};")
-    class_code.append(f"using {lookupns};")
+    # Lookup models are an optional split, declared by LookupNamespace in the config.
+    # An app that keeps its enum tables with the ordinary models has no such
+    # namespace, and an unused using directive is a compile error.
+    if config.get("LookupNamespace"):
+        class_code.append(f"using {lookupns};")
     class_code.append("using _0nline.Shared.Db.Contract.Models;")
     class_code.append("using _0nline.Shared.Db.Service;")
     class_code.append("")
