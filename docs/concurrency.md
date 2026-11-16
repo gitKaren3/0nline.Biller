@@ -53,16 +53,20 @@ accepted, not accidental.
 
 ## Outstanding
 
-1. **SmartTicket and `Templates/0nline.App`.** Same generator change plus their own
-   migrations. SmartTicket is a separate database; the template must emit the settings
-   so new apps start correct.
+1. **SmartTicket and `Templates/0nline.App`.** Generator ported (concurrency/audit
+   support copied, configs updated). Remaining: their own migrations (SmartTicket's
+   `db/schema.sql` and a migration for any existing dev copy), plus regenerating the
+   models once the columns exist. SmartTicket keeps its existing `ModifiedOn` column
+   mapped to `LastModifiedOn`; it still needs `LastModifiedBy` and `Version`.
 2. **Membership/Auth database.** `User` and `UserSubscription` are hand-maintained
    (`Auth/Service/db/Base`). Adding `IDbAuditable` needs a partial plus the columns,
    and `AuthModelContractTests` must stay green. Not started, and lower value: that
    database is not tenant-scoped and is written mostly by `AuthService`.
-3. **`DeleteAsync` / `DeActivateAsync` carry no version.** They take a key, not an
-   entity, so a delete cannot be version-checked today. An entity-based overload in
-   `DbStore` would fix both.
+3. **`DeleteAsync` / `DeActivateAsync` carry no version.** ✅ Done — entity-based
+   overloads added to `DbStore`/`DbService` (`DeleteAsync(T)` / `DeActivateAsync(T)`)
+   that carry the loaded version and throw `DbConcurrencyException` on a stale row;
+   `BillerBaseService` maps the conflict to `Result.Conflict`. Key-based overloads
+   remain for the id-only paths (e.g. `DBController`).
 4. **No `ETag` / `If-Match`.** The version rides in the JSON body. A client that never
    sends it fails closed (always a conflict), so enabling a table is a breaking change
    for that table's `PUT`. An opaque tag would let the body stay clean.

@@ -82,6 +82,52 @@ namespace _0nline.Biller.DL.Services.Base
             }
         }
 
+        /// <summary>
+        /// Entity-based variant of <see cref="DeleteOrDeactivateAsync(int)"/> that
+        /// carries the version the caller read, so a stale delete is reported as a
+        /// conflict instead of a silent no-op or a wrong-row delete.
+        /// </summary>
+        protected async Task<Result<T?>> DeleteOrDeactivateAsync(T entity)
+        {
+            if (entity is null)
+                throw new ArgumentNullException(nameof(entity));
+
+            int id = GetEntityKey(entity);
+
+            try
+            {
+                int count = await base.DeleteAsync(entity);
+                if (count > 0)
+                    return Result<T?>.Success();
+                else
+                    return Result<T?>.None();
+            }
+            catch (DbConcurrencyException ex)
+            {
+                return Result<T?>.Failure(ErrorCode.Conflict, ex.Message);
+            }
+            catch
+            {
+                int count = await base.DeActivateAsync(entity);
+                var reloaded = await base.GetByIdAsync(id);
+                if (count > 0)
+                    return Result<T?>.Success(reloaded);
+                else
+                    return Result<T?>.None();
+            }
+        }
+
+        private static int GetEntityKey(T entity)
+        {
+            var properties = GetCachedProperties<T>();
+            var pks = GetPKs(properties);
+            if (pks.Length == 0)
+                throw new InvalidOperationException("Entity has no primary key.");
+
+            var value = properties.First(p => p.Name == pks[0]).GetValue(entity);
+            return Convert.ToInt32(value);
+        }
+
         protected async Task<Result<T?>> FirstOrDefault(string sql, object parameters)
         {
             using var conn = Connection;
