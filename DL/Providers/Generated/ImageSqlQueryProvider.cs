@@ -12,7 +12,7 @@ namespace _0nline.Biller.DL.Providers
             : base(new DbTableDescriptor("Image")
             {
                 KeyColumns = new[] { "ID" },
-                EditableColumns = new[] { "TenantID", "Url", "Caption", "Public" },
+                EditableColumns = new[] { "TenantID", "Url", "Caption", "Public", "Version", "LastModifiedOn", "LastModifiedBy" },
                 ActiveColumn = null,
                 LookupLabel = new LookupLabel(new[] { "Url" }, " "),
                 LookupFilter = null

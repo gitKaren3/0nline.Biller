@@ -12,7 +12,7 @@ namespace _0nline.Biller.DL.Providers
             : base(new DbTableDescriptor("BankAccount")
             {
                 KeyColumns = new[] { "ID" },
-                EditableColumns = new[] { "TenantID", "AccountName", "BankName", "AccountNumber", "BranchCode", "AccountType", "SwiftCode", "IsDefault", "Active" },
+                EditableColumns = new[] { "TenantID", "AccountName", "BankName", "AccountNumber", "BranchCode", "AccountType", "SwiftCode", "IsDefault", "Active", "Version", "LastModifiedOn", "LastModifiedBy" },
                 ActiveColumn = "Active",
                 LookupLabel = new LookupLabel(new[] { "AccountName" }, " "),
                 LookupFilter = null

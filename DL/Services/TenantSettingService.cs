@@ -7,23 +7,26 @@ using _0nline.Shared.Auth.Contract;
 using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Models;
+using _0nline.Shared.Db.Contract.Exceptions;
 using _0nline.Shared.Db.Contract.Interfaces;
 using _0nline.Shared.Location;
 using _0nline.Shared.Location.Interfaces;
 using _0nline.Shared.Location.Models;
 using Dapper;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace _0nline.Biller.DL.Services
 {
     /// <summary>
-    /// One settings row per tenant. The write is an upsert on the unique TenantID
-    /// so two first-login requests cannot create two rows, and so Save is the same
-    /// statement whether the row exists or not.
+    /// One settings row per tenant. Writes go through the store so the row carries a
+    /// version and an audit stamp; the first-login ensure keeps its own transaction
+    /// race handling on top of the store's insert.
     /// </summary>
     public class TenantSettingService
         : BillerBaseService<TenantSetting>, ITenantSettingService
     {
+        private readonly MutableTenantContext _mutableContext;
         private readonly IAuthenticationService _authService;
         private readonly ICountryCatalog _countries;
         private readonly ICurrencyCatalog _currencies;
@@ -39,8 +42,9 @@ namespace _0nline.Biller.DL.Services
             ICurrencyCatalog currencies,
             TimeZoneCountryMap timeZones,
             IOptions<LocationOptions> location)
-            : base(ctx, queryService, tenancyContext)
+            : base(ctx, queryService, new MutableTenantContext(tenancyContext))
         {
+            _mutableContext = (MutableTenantContext)_tenantContext;
             _authService = authService;
             _countries = countries;
             _currencies = currencies;
@@ -62,12 +66,6 @@ namespace _0nline.Biller.DL.Services
             return ensured;
         }
 
-        /// <summary>
-        /// Creates the row without relying on the tenantId claim. First-login ensure
-        /// calls this immediately after creating the tenant, before a token carrying
-        /// the new id has been issued. The id is explicit and the caller is the
-        /// service that just created that tenant.
-        /// </summary>
         public async Task<Result<TenantSetting>> EnsureForTenantAsync(int tenantId, long? userId)
         {
             if (tenantId <= 0)
@@ -80,34 +78,38 @@ namespace _0nline.Biller.DL.Services
 
             var seed = await SeedAsync(userId);
 
-            using var conn = Connection;
-            var created = await conn.QuerySingleOrDefaultAsync<TenantSetting>(
-                $@"INSERT INTO {Quoted("TenantSetting")}
-                       ({Quoted("TenantID")}, {Quoted("CurrencyCode")},
-                        {Quoted("CurrencyMinorUnits")}, {Quoted("TimeZoneId")},
-                        {Quoted("DefaultTaxRate")})
-                   VALUES (@TenantID, @CurrencyCode, @CurrencyMinorUnits,
-                           @TimeZoneId, @DefaultTaxRate)
-                   ON CONFLICT ({Quoted("TenantID")}) DO NOTHING
-                   RETURNING *",
-                new
-                {
-                    TenantID = tenantId,
-                    seed.CurrencyCode,
-                    seed.CurrencyMinorUnits,
-                    seed.TimeZoneId,
-                    seed.DefaultTaxRate
-                });
+            var entity = new TenantSetting
+            {
+                TenantID = tenantId,
+                CurrencyCode = seed.CurrencyCode,
+                CurrencyMinorUnits = seed.CurrencyMinorUnits,
+                TimeZoneId = seed.TimeZoneId,
+                DefaultTaxRate = seed.DefaultTaxRate
+            };
 
-            // DO NOTHING returns no row when another request won the race. Read the
-            // row that won instead of returning a failure.
-            if (created is null)
-                created = await ReadAsync(tenantId);
+            _mutableContext.OverrideTenantId = tenantId;
+            _mutableContext.OverrideUserId = userId;
+            try
+            {
+                var created = await base.CreateAsync(entity);
+                if (created.Successful && created.Value is TenantSetting createdSetting)
+                    return Result<TenantSetting>.Success(createdSetting);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            {
+                // Another request won the race; fall through to the read.
+            }
+            finally
+            {
+                _mutableContext.OverrideTenantId = null;
+                _mutableContext.OverrideUserId = null;
+            }
 
-            return created is null
+            var raced = await ReadAsync(tenantId);
+            return raced is null
                 ? Result<TenantSetting>.Failure(
                     ErrorCode.ServerError, "The tenant settings could not be created.")
-                : Result<TenantSetting>.Success(created);
+                : Result<TenantSetting>.Success(raced);
         }
 
         public async Task<Result<TenantSetting>> SaveAsync(TenantSetting setting)
@@ -132,36 +134,48 @@ namespace _0nline.Biller.DL.Services
                 ? parsedFormat!.Text
                 : InvoiceNumberFormat.DefaultFormat;
 
-            using var conn = Connection;
-            var saved = await conn.QuerySingleAsync<TenantSetting>(
-                $@"INSERT INTO {Quoted("TenantSetting")}
-                       ({Quoted("TenantID")}, {Quoted("CurrencyCode")},
-                        {Quoted("CurrencyMinorUnits")}, {Quoted("TimeZoneId")},
-                        {Quoted("DefaultTaxRate")}, {Quoted("InvoiceNumberFormat")},
-                        {Quoted("NextInvoiceNumber")})
-                   VALUES (@TenantID, @CurrencyCode, @CurrencyMinorUnits,
-                           @TimeZoneId, @DefaultTaxRate, @InvoiceNumberFormat,
-                           @NextInvoiceNumber)
-                   ON CONFLICT ({Quoted("TenantID")}) DO UPDATE SET
-                       {Quoted("CurrencyCode")} = EXCLUDED.{Quoted("CurrencyCode")},
-                       {Quoted("CurrencyMinorUnits")} = EXCLUDED.{Quoted("CurrencyMinorUnits")},
-                       {Quoted("TimeZoneId")} = EXCLUDED.{Quoted("TimeZoneId")},
-                       {Quoted("DefaultTaxRate")} = EXCLUDED.{Quoted("DefaultTaxRate")},
-                       {Quoted("InvoiceNumberFormat")} = EXCLUDED.{Quoted("InvoiceNumberFormat")},
-                       {Quoted("NextInvoiceNumber")} = EXCLUDED.{Quoted("NextInvoiceNumber")}
-                   RETURNING *",
-                new
-                {
-                    TenantID = tenantId,
-                    CurrencyCode = currency.Code,
-                    CurrencyMinorUnits = (short)currency.MinorUnits,
-                    TimeZoneId = setting.TimeZoneId!.Trim(),
-                    DefaultTaxRate = setting.DefaultTaxRate ?? 0m,
-                    InvoiceNumberFormat = numberFormat,
-                    NextInvoiceNumber = setting.NextInvoiceNumber is int next && next > 0 ? next : 1
-                });
+            var existing = await ReadAsync(tenantId);
+            if (existing is not null)
+            {
+                ApplyValues(existing, currency, setting, numberFormat);
+                var updated = await base.UpdateAsync(existing);
+                if (updated.Successful)
+                    return Result<TenantSetting>.Success(existing);
+                return Result<TenantSetting>.Failure(updated.ErrorCode, updated.Errors);
+            }
 
-            return Result<TenantSetting>.Success(saved);
+            var created = new TenantSetting
+            {
+                TenantID = tenantId,
+                CurrencyCode = currency.Code,
+                CurrencyMinorUnits = (short)currency.MinorUnits,
+                TimeZoneId = setting.TimeZoneId!.Trim(),
+                DefaultTaxRate = setting.DefaultTaxRate ?? 0m,
+                InvoiceNumberFormat = numberFormat,
+                NextInvoiceNumber = setting.NextInvoiceNumber is int next && next > 0 ? next : 1
+            };
+
+            try
+            {
+                var result = await base.CreateAsync(created);
+                if (result.Successful)
+                    return Result<TenantSetting>.Success(created);
+                return Result<TenantSetting>.Failure(result.ErrorCode, result.Errors);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            {
+                // Another request created the row; re-read and update it.
+                var raced = await ReadAsync(tenantId);
+                if (raced is null)
+                    return Result<TenantSetting>.Failure(
+                        ErrorCode.ServerError, "The tenant settings could not be saved.");
+
+                ApplyValues(raced, currency, setting, numberFormat);
+                var updated = await base.UpdateAsync(raced);
+                if (updated.Successful)
+                    return Result<TenantSetting>.Success(raced);
+                return Result<TenantSetting>.Failure(updated.ErrorCode, updated.Errors);
+            }
         }
 
         private async Task<TenantSetting?> ReadAsync(int tenantId)
@@ -170,6 +184,20 @@ namespace _0nline.Biller.DL.Services
             return await conn.QueryFirstOrDefaultAsync<TenantSetting>(
                 $"SELECT * FROM {Quoted("TenantSetting")} WHERE {Quoted("TenantID")} = @TenantId",
                 new { TenantId = tenantId });
+        }
+
+        private static void ApplyValues(
+            TenantSetting target,
+            CurrencyInfo currency,
+            TenantSetting setting,
+            string numberFormat)
+        {
+            target.CurrencyCode = currency.Code;
+            target.CurrencyMinorUnits = (short)currency.MinorUnits;
+            target.TimeZoneId = setting.TimeZoneId!.Trim();
+            target.DefaultTaxRate = setting.DefaultTaxRate ?? 0m;
+            target.InvoiceNumberFormat = numberFormat;
+            target.NextInvoiceNumber = setting.NextInvoiceNumber is int next && next > 0 ? next : 1;
         }
 
         /// <summary>
@@ -247,6 +275,23 @@ namespace _0nline.Biller.DL.Services
                 return "The next invoice number must be at least 1.";
 
             return null;
+        }
+
+        private class MutableTenantContext : ITenantContext
+        {
+            private readonly ITenantContext _inner;
+            public int? OverrideTenantId { get; set; }
+            public long? OverrideUserId { get; set; }
+
+            public MutableTenantContext(ITenantContext inner)
+            {
+                _inner = inner;
+            }
+
+            public int? TenantId => OverrideTenantId ?? _inner.TenantId;
+            public long? UserId => OverrideUserId ?? _inner.UserId;
+            public string AppId => _inner.AppId;
+            public bool IsTenantAssigned => TenantId.HasValue;
         }
     }
 }

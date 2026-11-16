@@ -15,7 +15,6 @@
 --   File, RateType                  File is written by raw SQL only; RateType is read-only
 --   InvoiceSnapshot                 carries its own CreatedAt/LastAccessedAt/RevokedAt and
 --                                   is updated by raw SQL, so a version would never move
---   TenantSetting                   its raw INSERT ... ON CONFLICT upsert bypasses the store
 --   Tier, InvoiceStatus, TaxScheme  lookup/enum tables, never written as models
 --   test                            scratch table
 --
@@ -63,6 +62,11 @@ ALTER TABLE "TenantRate"
     ADD COLUMN IF NOT EXISTS "LastModifiedOn" timestamp with time zone DEFAULT now(),
     ADD COLUMN IF NOT EXISTS "LastModifiedBy" bigint;
 
+ALTER TABLE "TenantSetting"
+    ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS "LastModifiedOn" timestamp with time zone DEFAULT now(),
+    ADD COLUMN IF NOT EXISTS "LastModifiedBy" bigint;
+
 -- Existing rows predate the columns; ADD COLUMN already filled them with now().
 -- The UPDATE is a no-op on a fresh run and keeps the NOT NULL step honest.
 
@@ -74,5 +78,6 @@ ALTER TABLE "Invoice"       ALTER COLUMN "LastModifiedOn" SET NOT NULL;
 ALTER TABLE "InvoiceLine"   ALTER COLUMN "LastModifiedOn" SET NOT NULL;
 ALTER TABLE "Tenant"        ALTER COLUMN "LastModifiedOn" SET NOT NULL;
 ALTER TABLE "TenantRate"    ALTER COLUMN "LastModifiedOn" SET NOT NULL;
+ALTER TABLE "TenantSetting" ALTER COLUMN "LastModifiedOn" SET NOT NULL;
 
 COMMIT;
