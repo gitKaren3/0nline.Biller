@@ -113,10 +113,7 @@
                             </MudStack>
                         </MudStack>
 
-                        <MudChip T="string" Icon="@StatusIcon" Color="@StatusColor"
-                                 Variant="Variant.Filled" Size="Size.Medium">
-                            @StatusLabel
-                        </MudChip>
+                        <InvoiceStatusChip Status="_invoice.theInvoiceStatus" Size="Size.Medium" />
                     </MudStack>
 
                     <MudGrid Class="mt-4">
@@ -166,173 +163,18 @@
                         </MudStack>
                     }
 
-                    <MudTable Items="@_invoice.InvoiceLines" Hover="true" Dense="true" Elevation="0"
-                              Class="@(IsDraft ? "invoice-lines-table invoice-lines-editable" : "invoice-lines-table")">
-                        <ColGroup>
-                            <col />
-                            <col style="width: 20%;" />
-                            <col style="width: 15%;" />
-                            @if (_showTax)
-                            {
-                                <col style="width: 8%;" />
-                                <col style="width: 10%;" />
-                            }
-                            <col style="width: 80px;" />
-                            <col style="width: 10%;" />
-                            @if (IsDraft)
-                            {
-                                <col style="width: 40px;" />
-                            }
-                        </ColGroup>
-                        <HeaderContent>
-                            <MudTh Style="padding-left:10px;">Description</MudTh>
-                            <MudTh>@(_showTax ? "Rate (Excl)" : "Rate")</MudTh>
-                            <MudTh>Rate type</MudTh>
-                            @if (_showTax)
-                            {
-                                <MudTh Style="text-align:right">Tax</MudTh>
-                                <MudTh Style="text-align:right">Incl</MudTh>
-                            }
-                            <MudTh Style="text-align:right;padding-right:10px;">Qty</MudTh>
-                            <MudTh Style="text-align:right;padding-right:0px;">Total</MudTh>
-                            @if (IsDraft)
-                            {
-                                <MudTh></MudTh>
-                            }
-                        </HeaderContent>
-                        <RowTemplate Context="line">
-                            <MudTd DataLabel="Description" Style="padding-left:10px;">
-                                @if (IsDraft)
-                                {
-                                    <MudTextField T="string" Required="true" RequiredError="Required."
-                                                  @bind-Value="line.Description" />
-                                }
-                                else
-                                {
-                                    <MudText>@line.Description</MudText>
-                                }
-                            </MudTd>
-
-                            <MudTd DataLabel="Rate">
-                                @if (IsDraft)
-                                {
-                                    <MudStack Spacing="0">
-                                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
-                                            @if (!_showTax)
-                                            {
-                                                <MudNumericField T="decimal?" Value="line.BilledRateIncl"
-                                                                 ValueChanged="@(v => OnRateAmountChanged(line, v))"
-                                                                 Min="0" Margin="Margin.Dense" Required="true"
-                                                                 RequiredError="Required."
-                                                                 Format="@($"N{_minorUnits}")" Class="pa-0"
-                                                                   />
-                                            }
-                                            else
-                                            {
-                                                <MudNumericField T="decimal?" Value="LineExcl(line)"
-                                                                 ValueChanged="@(v => OnExclChanged(line, v))"
-                                                                 Min="0" Margin="Margin.Dense" Required="true"
-                                                                 RequiredError="Required."
-                                                                 Format="@($"N{_minorUnits}")" Class="pa-0" />
-                                            }
-                                            <QuickRateMenu Rates="_rates"
-                                                           ContactId="_invoice.IssuedToContactID"
-                                                           CompanyId="_invoice.CompanyID"
-                                                           RateTypes="_rateTypes"
-                                                           Companies="_companies"
-                                                           Contacts="_contacts"
-                                                           CurrencySymbol="@_currencySymbol"
-                                                           MinorUnits="_minorUnits"
-                                                           OnPick="@(rate => OnQuickRateAsync(line, rate))"
-                                                           OnNew="@((short? _) => AddRateAsync(line))" />
-                                        </MudStack>
-                                        @if (line.TenantRateID is int sourceId)
-                                        {
-                                            //<MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                            //    From @RateLabelFor(sourceId)
-                                            //</MudText>
-                                            @if (SourceRateMismatch(line))
-                                            {
-                                                <MudText Typo="Typo.caption" Color="Color.Error">
-                                                    Source rate differs from this line.
-                                                </MudText>
-                                            }
-                                        }
-                                    </MudStack>
-                                }
-                                else
-                                {
-                                    @if (!_showTax)
-                                    {
-                                        <MudText>@Money(line.BilledRateIncl ?? 0m)</MudText>
-                                    }
-                                    else
-                                    {
-                                        <MudText>@Money(LineExcl(line) ?? 0m)</MudText>
-                                    }
-                                }
-                            </MudTd>
-
-                            <MudTd DataLabel="Rate type" >
-                                @if (IsDraft)
-                                {
-                                    <MudSelect T="short?" Clearable="true"
-                                               Value="line.RateTypeID"
-                                               ValueChanged="@(v => OnRateTypeChanged(line, v))">
-                                        @foreach (var rateType in _rateTypes.OrderBy(type => type.Key))
-                                        {
-                                            <MudSelectItem T="short?" Value="@((short)rateType.Key)">
-                                                @rateType.Value
-                                            </MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                }
-                                else
-                                {
-                                    <MudText>@RateTypeName(line.RateTypeID)</MudText>
-                                }
-                            </MudTd>
-
-                            @if (_showTax)
-                            {
-                                <MudTd DataLabel="Tax" Style="text-align:right">
-                                    <MudText>@Money(LineTax(line))</MudText>
-                                </MudTd>
-                                <MudTd DataLabel="Incl" Style="text-align:right">
-                                    <MudText>@Money(line.BilledRateIncl ?? 0m)</MudText>
-                                </MudTd>
-                            }
-
-                            <MudTd DataLabel="Qty" Style="text-align:right;padding-right:0px;padding-left:5px;">
-                                @if (IsDraft)
-                                {
-                                    <MudNumericField T="decimal?" Min="@(0.01m)" Step="@(0.25m)"
-                                                     Required="true" RequiredError="Required."
-                                                     Margin="Margin.Dense" Class="pa-0"
-                                                     @bind-Value="line.Qty" />
-                                }
-                                else
-                                {
-                                    <MudText>@FormatQty(line.Qty)</MudText>
-                                }
-                            </MudTd>
-
-                            <MudTd DataLabel="Total" Style="text-align:right;padding-right:0px;">
-                                <MudText>@Money(LineAmount(line))</MudText>
-                            </MudTd>
-
-                            @if (IsDraft)
-                            {
-                                <MudTd Style="text-align:right;padding-right:2px;">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                                   aria-label="Remove line" OnClick="@(() => RemoveLine(line))" />
-                                </MudTd>
-                            }
-                        </RowTemplate>
-                        <NoRecordsContent>
-                            <MudText Typo="Typo.body2" Class="pa-4">No line items yet.</MudText>
-                        </NoRecordsContent>
-                    </MudTable>
+                    <InvoiceLines Invoice="_invoice"
+                                  IsDraft="IsDraft"
+                                  ShowTax="_showTax"
+                                  TaxRate="_taxRate"
+                                  MinorUnits="_minorUnits"
+                                  CurrencySymbol="@_currencySymbol"
+                                  Rates="_rates"
+                                  RateTypes="_rateTypes"
+                                  Companies="_companies"
+                                  Contacts="_contacts"
+                                  RateTypeMaxQty="_rateTypeMaxQty"
+                                  OnChanged="StateHasChanged" />
 
                     @if (IsDraft)
                     {

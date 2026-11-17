@@ -292,6 +292,12 @@ footer {
     flex-shrink: 0;
 }
 
+/* Right-align numeric inputs */
+.mud-input-number-control input {
+	text-align: right;
+    padding-right: 25px !important;
+}
+
 /* The billing summary is useful, but it crowds the app bar on a phone. The gear
    remains, and the full form is one tap away in the nav and account menu. */
 @media (max-width: 640px) {

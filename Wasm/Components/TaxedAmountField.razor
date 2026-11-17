@@ -10,7 +10,8 @@
     <MudNumericField T="decimal?" Value="_incl" ValueChanged="OnInclChanged"
                      Label="@Label" Min="0" Required="@Required"
                      RequiredError="@RequiredError" Disabled="@Disabled"
-                     For="@For" Format="@FormatString" Class="@Class" />
+                     For="@For" Format="@FormatString" Class="@($"mt-3 {Class}".Trim())" 
+                     Adornment="Adornment.Start" Variant="Variant.Text" Margin="Margin.Normal" />
 }
 else if (Compact)
 {
@@ -18,33 +19,50 @@ else if (Compact)
         <MudStack Row="true" Spacing="1">
             <MudNumericField T="decimal?" Value="_excl" ValueChanged="OnExclChanged"
                              Label="Excl" Min="0" Margin="Margin.Dense" Disabled="@Disabled"
-                             Format="@FormatString" Class="@Class" />
+                             Format="@FormatString" Class="@($"mt-3 {Class}".Trim())" />
             <MudNumericField T="decimal?" Value="_incl" ValueChanged="OnInclChanged"
                              Label="Incl" Min="0" Margin="Margin.Dense" Disabled="@Disabled"
                              Required="@Required" RequiredError="@RequiredError"
-                             For="@For" Format="@FormatString" Class="@Class" />
+                             For="@For" Format="@FormatString" Class="@($"mt-3 {Class}".Trim())" />
         </MudStack>
         <MudText Typo="Typo.caption" Class="mud-text-secondary">@TaxCaption</MudText>
     </MudStack>
 }
 else
 {
-    <MudGrid Spacing="1">
-        <MudItem xs="12" sm="6" md="4">
-            <MudNumericField T="decimal?" Value="_excl" ValueChanged="OnExclChanged"
-                             Label="@($"{Label} (Excl)")" Min="0" Disabled="@Disabled"
-                             Margin="Margin.Dense" Format="@FormatString" Class="@Class" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
-            <MudNumericField T="decimal?" Value="_tax" Label="Tax" ReadOnly="true"
-                             Disabled="@Disabled" Margin="Margin.Dense" Format="@FormatString" Class="@Class" />
-        </MudItem>
-        <MudItem xs="12" sm="6" md="4">
+    <MudGrid Spacing="2" Justify="Justify.SpaceBetween" style="margin:0;border: solid 0px red;">
+        <MudItem xs="4" style="padding-left:0px;">
             <MudNumericField T="decimal?" Value="_incl" ValueChanged="OnInclChanged"
-                             Label="@($"{Label} (Incl)")" Min="0" Required="@Required"
+                             Label="@($"{Label} Incl")" Min="0" Required="@Required"
                              RequiredError="@RequiredError" Disabled="@Disabled"
-                             Margin="Margin.Dense" For="@For" Format="@FormatString" Class="@Class" />
+                             Margin="Margin.Dense" For="@For" Format="@FormatString"
+                             Class="@($"mt-3 {Class}".Trim())" ShrinkLabel="true"
+                             Variant="Variant.Outlined" />
         </MudItem>
+        <MudItem xs="1" style="padding-top:30px;text-align:center;">
+            <MudIcon Icon="@Icons.Material.Rounded.DragHandle"  />
+        </MudItem>
+        <MudItem xs="3" >
+             <MudNumericField T="decimal?" Value="_excl" ValueChanged="OnExclChanged"
+                             Label="@($"{Label} Excl")" Min="0" Disabled="@Disabled"
+                             Margin="Margin.Dense" Format="@FormatString"
+                             Class="@($"mt-3 {Class}".Trim())" ShrinkLabel="true" 
+                            Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="1" style="padding-top:30px;text-align:center;">
+            <MudIcon Icon="@Icons.Material.Rounded.Add"/>
+             
+         </MudItem>
+        
+        <MudItem xs="3">
+            <MudTextField T="string" Value="@(_tax?.ToString(FormatString))" 
+                          Label="Tax" ReadOnly="true" Disabled="@Disabled"
+                          Margin="Margin.Dense" InputType="InputType.Number"
+                          Class="@($"mt-3 {Class}".Trim())" 
+                          Variant="Variant.Outlined" ShrinkLabel="true" />
+            
+        </MudItem>
+       
     </MudGrid>
 }
 

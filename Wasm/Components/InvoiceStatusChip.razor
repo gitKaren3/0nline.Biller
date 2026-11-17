@@ -1,0 +1,43 @@
+@using _0nline.Biller.DL.Contract.Enums
+
+@* Renders an invoice's status as a MudChip, shared by the invoice editor and the invoice list. *@
+
+<MudChip T="string" Icon="@Icon" Color="@Color" Variant="Variant.Filled" Size="Size">
+    @Label
+</MudChip>
+
+@code {
+    [Parameter] public InvoiceStatus Status { get; set; }
+
+    [Parameter] public Size Size { get; set; } = Size.Small;
+
+    private string Label => Status switch
+    {
+        InvoiceStatus.Finalized => "Finalized",
+        InvoiceStatus.Issued => "Issued",
+        InvoiceStatus.Viewed => "Viewed",
+        InvoiceStatus.Paid => "Paid",
+        InvoiceStatus.Cancelled => "Cancelled",
+        _ => "Draft"
+    };
+
+    private string Icon => Status switch
+    {
+        InvoiceStatus.Finalized => Icons.Material.Filled.Lock,
+        InvoiceStatus.Issued => Icons.Material.Filled.Send,
+        InvoiceStatus.Viewed => Icons.Material.Filled.Visibility,
+        InvoiceStatus.Paid => Icons.Material.Filled.CheckCircle,
+        InvoiceStatus.Cancelled => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.EditNote
+    };
+
+    private Color Color => Status switch
+    {
+        InvoiceStatus.Finalized => Color.Info,
+        InvoiceStatus.Issued => Color.Primary,
+        InvoiceStatus.Viewed => Color.Info,
+        InvoiceStatus.Paid => Color.Success,
+        InvoiceStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+}
