@@ -145,6 +145,7 @@ public class CompanyFormTests : Base.MudTestContext, IAsyncLifetime
         }
 
         public Task<Result<Image?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Image>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Image[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => throw new NotSupportedException();
         public Task<Result<Image>> CreateAsync(Image entity) => throw new NotSupportedException();

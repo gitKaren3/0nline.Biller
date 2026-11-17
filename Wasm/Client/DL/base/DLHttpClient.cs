@@ -17,6 +17,9 @@ namespace _0nline.Biller.Wasm.Client.DL
         public async Task<Result<T?>> GetOneAsync(int id)
             => await GetAndHandleAsync<T?>($"{id}");
 
+        public async Task<Result<PageOf<T>>> GetPageAsync(int page, int pageSize)
+            => await GetAndHandleAsync<PageOf<T>>($"page?page={page}&pageSize={pageSize}");
+
         protected async Task<Result<T[]>> GetAllAsync()
             => await GetAndHandleAsync<T[]>("");
 

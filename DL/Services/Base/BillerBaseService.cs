@@ -5,6 +5,7 @@ using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Exceptions;
 using _0nline.Shared.Db.Contract.Interfaces;
+using _0nline.Shared.Db.Contract.Models;
 using _0nline.Shared.Db.Service;
 using Dapper;
 
@@ -29,6 +30,30 @@ namespace _0nline.Biller.DL.Services.Base
         {
             var list = await base.GetAllAsync();
             return Result<T[]>.Success(list);
+        }
+
+        public Task<Result<PageOf<T>>> GetPageAsync(int page, int pageSize)
+            => PageAsync(new PageRequest(page, pageSize));
+
+        /// <summary>
+        /// One page with an app-specific order. The order is chosen here, in code, so
+        /// an app service can expose a sort without accepting a column name from the
+        /// caller. With no sort the store uses its primary-key order.
+        /// </summary>
+        protected async Task<Result<PageOf<T>>> PageAsync(
+            PageRequest page,
+            params DbSort<T>[] orderBy)
+        {
+            try
+            {
+                var result = await base.GetPageAsync(page, orderBy: orderBy);
+                return Result<PageOf<T>>.Success(
+                    new PageOf<T>(result.Items, result.TotalCount, result.Page, result.PageSize));
+            }
+            catch (Exception ex) when (ex is ArgumentOutOfRangeException or OverflowException)
+            {
+                return Result<PageOf<T>>.Failure(ErrorCode.ValidationFailed, ex.Message);
+            }
         }
 
         protected new async Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync()

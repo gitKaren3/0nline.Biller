@@ -30,15 +30,15 @@
             {
                 <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
                     <MudText Typo="Typo.body2">
-                        The invoices you have issued. Open one to edit its draft or view its preview.
+                        The invoices you have issued, newest first. Open one to edit its draft or view its preview.
                     </MudText>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary"
                                StartIcon="@Icons.Material.Filled.Add" OnClick="CreateNew">
                         New invoice
                     </MudButton>
                 </MudStack>
 
-                @if (_invoices.Count == 0)
+                @if (_totalCount == 0)
                 {
                     <MudText Typo="Typo.body2">
                         No invoices yet. Create one to send your first bill.
@@ -59,11 +59,11 @@
                                 </MudStack>
 
                                 <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
-                                   
+
                                     <MudText Typo="Typo.body2">@FormatDate(invoice.InvoiceDate)</MudText>
 
                                     <InvoiceStatusChip Status="(InvoiceStatus)invoice.InvoiceStatusID" />
-                                    
+
                                     @if (invoice.theInvoiceStatus == default || invoice.theInvoiceStatus == InvoiceStatus.Draft)
                                     {
                                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" 
@@ -83,6 +83,39 @@
                             }
                         }
                     </MudPaper>
+
+                    @if (_totalPages > 0)
+                    {
+
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-3">
+                            <MudItem>
+                                <MudText Typo="Typo.body2">@PageSummary()</MudText>
+                            </MudItem>
+                            <MudItem>
+                                <MudPagination Count="_totalPages"
+                                               Selected="_page"
+                                               SelectedChanged="OnPageChanged"
+                                               ShowFirstButton="@(_totalPages > 2)"
+                                               ShowLastButton="@(_totalPages > 2)"
+                                               Size="Size.Small"
+                                               Variant="Variant.Filled"
+                                               Color="Color.Primary" />
+                            </MudItem>
+                            <MudItem >
+                                <MudStack Row="true" AlignItems="AlignItems.Center">
+                                    <MudText Typo="Typo.body2" >Page Size:</MudText>
+                                <MudSelect T="int" Value="_pageSize" ValueChanged="ChangePageSizeAsync" Margin="Margin.Dense"
+                                           Dense="true" Variant="Variant.Text" Style="max-width: 120px;">
+                                    @foreach (var size in PageSizeOptions)
+                                    {
+                                        <MudSelectItem T="int" Value="size">@($"{size} items")</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                </MudStack>
+                            </MudItem>
+                        </MudStack>
+
+                    }
                 }
             }
         </MudPaper>
@@ -95,9 +128,16 @@
 @code {
     private const string LoadErrorMessage = "We could not load your invoices. Please try again.";
 
+    private static readonly int[] PageSizeOptions = { 5, 10, 25, 50 };
+
     private List<Invoice> _invoices = new();
     private IReadOnlyDictionary<int, string> _contacts = new Dictionary<int, string>();
     private IReadOnlyDictionary<int, string> _statuses = new Dictionary<int, string>();
+
+    private int _page = 1;
+    private int _pageSize = 10;
+    private int _totalCount;
+    private int _totalPages;
 
     private bool _loading = true;
     private string? _loadError;
@@ -111,7 +151,7 @@
 
         try
         {
-            var invoicesTask = InvoiceService.GetAllAsync();
+            var invoicesTask = InvoiceService.GetRecentPageAsync(_page, _pageSize);
             var contactsTask = ContactService.GetLookupAsync();
             var statusesTask = InvoiceStatusService.GetLookupAsync();
 
@@ -121,13 +161,15 @@
             var contacts = await contactsTask;
             var statuses = await statusesTask;
 
-            if (!invoices.Successful || invoices.Value is not Invoice[] list)
+            if (!invoices.Successful || invoices.Value is not PageOf<Invoice> result)
             {
                 _loadError = Describe(invoices, LoadErrorMessage);
                 return;
             }
 
-            _invoices = list.ToList();
+            _invoices = result.Items.ToList();
+            _totalCount = result.TotalCount;
+            _totalPages = result.TotalPages;
             _contacts = contacts.Successful && contacts.Value != null ? contacts.Value : _contacts;
             _statuses = statuses.Successful && statuses.Value != null ? statuses.Value : _statuses;
         }
@@ -139,6 +181,38 @@
         {
             _loading = false;
         }
+    }
+
+    private async Task ChangePageSizeAsync(int pageSize)
+    {
+        _pageSize = pageSize;
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        // MudPagination also reports the value it is re-rendered with. A page-size
+        // change has already reset the page and loaded it, so only a real move
+        // needs another round trip.
+        if (page == _page)
+            return;
+
+        _page = page;
+        await ReloadAsync();
+    }
+
+    private string PageSummary()
+    {
+        if (_totalCount == 0)
+            return string.Empty;
+
+        var first = (_page - 1) * _pageSize + 1;
+        var last = Math.Min(_page * _pageSize, _totalCount);
+        if (first == last)
+            return $"Showing {first} of {_totalCount}";
+        else
+            return $"Showing {first}-{last} of {_totalCount}";
     }
 
     private void CreateNew() => Navigation.NavigateTo("/invoice/0");

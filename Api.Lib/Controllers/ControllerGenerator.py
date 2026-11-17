@@ -39,6 +39,12 @@ namespace {target_namespace}
             var result = await BaseService.GetOneAsync(id);
             return Ok(result);
         }}
+
+        [HttpGet("page")]
+        public virtual async Task<IActionResult> GetPage([FromQuery] int page = 1, [FromQuery] int pageSize = 25) {{
+            var result = await BaseService.GetPageAsync(page, pageSize);
+            return Ok(result);
+        }}
     }}
 }}
 """

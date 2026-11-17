@@ -330,6 +330,7 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
         public Task<Result> PurgeAsync(int tenantId) => throw new NotSupportedException();
 
         public Task<Result<Tenant?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Tenant>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Tenant>> CreateAsync(Tenant entity) => throw new NotSupportedException();
         public Task<Result<Tenant>> UpdateAsync(Tenant entity) => throw new NotSupportedException();
         public Task<Result<Tenant?>> DeleteOrDeactivateAsync(int id) => throw new NotSupportedException();
@@ -355,6 +356,7 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
         }
 
         public Task<Result<Contact?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Contact>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Contact[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => throw new NotSupportedException();
         public Task<Result<Contact?>> DeleteOrDeactivateAsync(int id) => throw new NotSupportedException();
@@ -382,6 +384,7 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
         }
 
         public Task<Result<Company?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Company>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Company[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => throw new NotSupportedException();
         public Task<Result<Company?>> DeleteOrDeactivateAsync(int id) => throw new NotSupportedException();
@@ -394,6 +397,7 @@ public class TenantFormTests : Base.MudTestContext, IAsyncLifetime
             => throw new NotSupportedException();
         public Task<Result> RemoveAndDeRegisterImageAsync(int imageId) => throw new NotSupportedException();
         public Task<Result<Image?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Image>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Image[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => throw new NotSupportedException();
         public Task<Result<Image>> CreateAsync(Image entity) => throw new NotSupportedException();

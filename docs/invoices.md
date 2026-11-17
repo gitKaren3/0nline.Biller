@@ -24,6 +24,8 @@ Draft ──finalize──► Finalized ──send──► Issued
 | Method and route | Purpose |
 |---|---|
 | `GET api/biller/invoice` | List. No lines loaded; use the detail read. |
+| `GET api/biller/invoice/page?page=…&pageSize=…` | Generic page, primary-key order. |
+| `GET api/biller/invoice/page/recent?page=…&pageSize=…` | Invoice list page, newest first (`ID` descending). |
 | `GET api/biller/invoice/{id}` | Detail **with `InvoiceLines`**, contact and status navigation. |
 | `POST api/biller/invoice` | Create the invoice **and its lines** in one transaction. |
 | `PUT api/biller/invoice` | Update a draft and reconcile its lines (see below). |
@@ -38,6 +40,21 @@ Draft ──finalize──► Finalized ──send──► Issued
 
 All of the above require a bearer token. The only anonymous route is
 `GET api/biller/invoicesnapshot/{token}/pdf`, which is what the mailed link opens.
+
+## Listing and paging
+
+The invoice list is paged and newest first. `IInvoiceService.GetRecentPageAsync(page,
+pageSize)` passes `DbSort<Invoice>.Desc(invoice => invoice.ID)` to the shared store, so
+the order is chosen in code and a caller cannot name a column. The response is
+`Result<PageOf<Invoice>>` — the usual outcome envelope around `Items`, `TotalCount`,
+`Page`, `PageSize` and `TotalPages`.
+
+The generic `page` route exists on every generated readable controller and pages in
+primary-key order. `page/recent` is a hand-written partial
+(`Api.Lib/Controllers/InvoiceController.Paging.cs`) because a generic service has no
+entity-specific sort map. `PageRequest.MaxPageSize` is 1000; the list defaults to 10
+items and offers 5/10/25/50. `Invoices.Page.razor` uses `MudPagination` and reports
+`Showing x-y of z`; `Test/InvoicesPageTests.cs` covers moving from page 1 to page 2.
 
 ## Saving an invoice and its lines
 
@@ -159,7 +176,8 @@ historical lines.
 
 ## Clients the UI uses
 
-- `IInvoiceService` / `InvoiceServiceClient` — CRUD, `FinalizeAsync`, `PreviewAsync`.
+- `IInvoiceService` / `InvoiceServiceClient` — CRUD, `FinalizeAsync`, `PreviewAsync`,
+  `GetRecentPageAsync`.
 - `IInvoiceSnapshotClient` / `InvoiceSnapshotServiceClient` — link, activity, revoke.
 - Existing pickers: `ICompanyService.ListClientsAsync`, `IContactService`,
   `ITenantRateService`, `IRateTypeService`, `IBankAccountService`, `IInvoiceStatusService`.

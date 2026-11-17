@@ -8,6 +8,16 @@ namespace _0nline.Biller.DL.Contract.Interfaces
     public interface IInvoiceService : IDLBaseService<Invoice>, IDLReadableService<Invoice>, IDLWritableService<Invoice>
     {
         /// <summary>
+        /// The invoice list, newest first (ID descending), one page at a time.
+        /// </summary>
+        /// <remarks>
+        /// This is the app-specific sort that the generic <c>GetPageAsync</c> cannot
+        /// express: the order is a <c>DbSort&lt;Invoice&gt;</c> chosen in code, never
+        /// a column name supplied by the caller.
+        /// </remarks>
+        Task<Result<PageOf<Invoice>>> GetRecentPageAsync(int page, int pageSize);
+
+        /// <summary>
         /// Finalizes a draft. A finalized invoice can no longer be edited and is
         /// the state from which a link can be sent.
         /// </summary>

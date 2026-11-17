@@ -8,10 +8,15 @@
 
 The script reads C# interface files from a configured input directory, detects which services they implement (`IDLReadableService` and/or `IDLWritableService`), and generates corresponding REST controllers with standard endpoints:
 
-- **Readable services** get `GET /` (GetAll) and `GET /lookup` (GetLookup)
+- **Readable services** get `GET /` (GetAll), `GET /page` (key-ordered page) and `GET /lookup` (GetLookup)
 - **Writable services** get `POST /` (Create), `PUT /` (Update), and `DELETE /{id}` (DeleteOrDeactivate)
 
-It also generates an abstract **base controller** (`{App}BaseController<T, TKey>`) that all generated controllers inherit from, providing shared routing and a common `GetById` endpoint.
+It also generates an abstract **base controller** (`{App}BaseController<T, TKey>`) that all generated controllers inherit from, providing shared routing plus the common `GetById` and `GetPage` endpoints.
+
+`GetPage` is a `Result<PageOf<T>>`; the page size and number are query parameters. It is
+primary-key ordered. An app-specific order (for example Biller's newest-first invoice
+list) belongs in a hand-written partial controller plus a service method that supplies a
+`DbSort<T>` — see `InvoiceController.Paging.cs`.
 
 
 ## How to Run

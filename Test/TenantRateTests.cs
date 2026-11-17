@@ -216,6 +216,9 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
             => Task.FromResult(Result<TenantRate?>.Success(
                 Rates.FirstOrDefault(rate => rate.ID == id)));
 
+        public Task<Result<PageOf<TenantRate>>> GetPageAsync(int page, int pageSize)
+            => throw new NotSupportedException();
+
         public Task<Result<TenantRate>> CreateAsync(TenantRate entity)
         {
             entity.ID = Rates.Count == 0 ? 1 : Rates.Max(rate => rate.ID) + 1;
@@ -256,6 +259,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
         }
 
         public Task<Result<RateType?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<RateType>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<RateType[]>> GetAllAsync()
             => Task.FromResult(Result<RateType[]>.Success(Array.Empty<RateType>()));
     }
@@ -273,6 +277,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
             => Task.FromResult(Result<IReadOnlyDictionary<int, string>>.Success(_values));
 
         public Task<Result<Company?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Company>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Company[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<Company>> CreateAsync(Company entity) => throw new NotSupportedException();
         public Task<Result<Company>> UpdateAsync(Company entity) => throw new NotSupportedException();
@@ -290,6 +295,7 @@ public class TenantRateTests : Base.MudTestContext, IAsyncLifetime
             => Task.FromResult(Result<IReadOnlyDictionary<int, string>>.Success(_values));
 
         public Task<Result<Contact?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Contact>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Contact[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<Contact>> CreateAsync(Contact entity) => throw new NotSupportedException();
         public Task<Result<Contact>> UpdateAsync(Contact entity) => throw new NotSupportedException();

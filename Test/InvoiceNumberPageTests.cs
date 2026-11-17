@@ -136,6 +136,8 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
             => Task.FromResult(Result<decimal?>.Success(null));
 
         public Task<Result<Invoice?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Invoice>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
+        public Task<Result<PageOf<Invoice>>> GetRecentPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Invoice[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync()
             => throw new NotSupportedException();
@@ -166,6 +168,9 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
         public Task<Result<TenantSetting?>> GetOneAsync(int id)
             => Task.FromResult(Result<TenantSetting?>.Success(Settings));
 
+        public Task<Result<PageOf<TenantSetting>>> GetPageAsync(int page, int pageSize)
+            => throw new NotSupportedException();
+
         public Task<Result<TenantSetting>> EnsureForTenantAsync(int tenantId, long? userId)
             => Task.FromResult(Result<TenantSetting>.Success(Settings));
 
@@ -180,6 +185,7 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
                 new Dictionary<int, string>()));
 
         public Task<Result<Contact?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Contact>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Contact[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<Contact>> CreateAsync(Contact entity) => throw new NotSupportedException();
         public Task<Result<Contact>> UpdateAsync(Contact entity) => throw new NotSupportedException();
@@ -193,6 +199,7 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
                 new Dictionary<int, string>()));
 
         public Task<Result<Company?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<Company>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Company[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<Company>> CreateAsync(Company entity) => throw new NotSupportedException();
         public Task<Result<Company>> UpdateAsync(Company entity) => throw new NotSupportedException();
@@ -206,6 +213,7 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
                 new Dictionary<int, string>()));
 
         public Task<Result<RateType?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<RateType>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<RateType[]>> GetAllAsync()
             => Task.FromResult(Result<RateType[]>.Success(Array.Empty<RateType>()));
     }
@@ -220,6 +228,7 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
                 new Dictionary<int, string>()));
 
         public Task<Result<TenantRate?>> GetOneAsync(int id) => throw new NotSupportedException();
+        public Task<Result<PageOf<TenantRate>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<TenantRate>> CreateAsync(TenantRate entity) => throw new NotSupportedException();
         public Task<Result<TenantRate>> UpdateAsync(TenantRate entity) => throw new NotSupportedException();
         public Task<Result<TenantRate?>> DeleteOrDeactivateAsync(int id) => throw new NotSupportedException();

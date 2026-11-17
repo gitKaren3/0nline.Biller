@@ -11,6 +11,7 @@ using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Exceptions;
 using _0nline.Shared.Db.Contract.Interfaces;
+using _0nline.Shared.Db.Contract.Models;
 using _0nline.Shared.Location;
 using Dapper;
 using Npgsql;
@@ -44,6 +45,11 @@ namespace _0nline.Biller.DL.Services
 
         public new Task<Result<Invoice[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+
+        public Task<Result<PageOf<Invoice>>> GetRecentPageAsync(int page, int pageSize)
+            => PageAsync(
+                new PageRequest(page, pageSize),
+                DbSort<Invoice>.Desc(invoice => invoice.ID));
 
         public new Task<Result<Invoice>> CreateAsync(Invoice entity) => CreateWithLinesAsync(entity);
         public new Task<Result<Invoice>> UpdateAsync(Invoice entity) => UpdateWithLinesAsync(entity);

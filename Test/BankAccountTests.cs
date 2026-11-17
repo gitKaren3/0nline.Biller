@@ -116,6 +116,9 @@ public class BankAccountTests : Base.MudTestContext, IAsyncLifetime
             => Task.FromResult(Result<BankAccount?>.Success(
                 Accounts.FirstOrDefault(account => account.ID == id)));
 
+        public Task<Result<PageOf<BankAccount>>> GetPageAsync(int page, int pageSize)
+            => throw new NotSupportedException();
+
         public Task<Result<BankAccount>> CreateAsync(BankAccount entity)
         {
             entity.ID = Accounts.Count == 0 ? 1 : Accounts.Max(account => account.ID) + 1;

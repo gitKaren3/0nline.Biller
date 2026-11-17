@@ -80,6 +80,9 @@ public class TenantSettingFormTests : Base.MudTestContext, IAsyncLifetime
         public Task<Result<TenantSetting?>> GetOneAsync(int id)
             => Task.FromResult(Result<TenantSetting?>.Success(_settings));
 
+        public Task<Result<PageOf<TenantSetting>>> GetPageAsync(int page, int pageSize)
+            => throw new NotSupportedException();
+
         public Task<Result<TenantSetting>> EnsureForTenantAsync(int tenantId, long? userId)
             => Task.FromResult(Result<TenantSetting>.Success(_settings));
 

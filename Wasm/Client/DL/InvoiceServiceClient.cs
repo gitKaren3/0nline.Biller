@@ -16,6 +16,10 @@ namespace _0nline.Biller.Wasm.Client.DL
         public new Task<Result<Invoice[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
+        public Task<Result<PageOf<Invoice>>> GetRecentPageAsync(int page, int pageSize)
+            => GetAndHandleAsync<PageOf<Invoice>>(
+                $"page/recent?page={page}&pageSize={pageSize}");
+
         public new Task<Result<Invoice>> CreateAsync(Invoice entity) => base.CreateAsync(entity);
         public new Task<Result<Invoice>> UpdateAsync(Invoice entity) => base.UpdateAsync(entity);
         public new Task<Result<Invoice?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);
