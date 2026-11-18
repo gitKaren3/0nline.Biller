@@ -80,6 +80,10 @@ public class InvoicesPageTests : Base.MudTestContext, IAsyncLifetime
                 new PageOf<Invoice>(items, all.Length, page, pageSize)));
         }
 
+        public Task<Result<PageOf<Invoice>>> SearchPageAsync(
+            InvoiceSearch search, int page, int pageSize)
+            => throw new NotSupportedException();
+
         public Task<Result<Invoice?>> GetOneAsync(int id) => throw new NotSupportedException();
         public Task<Result<PageOf<Invoice>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Invoice[]>> GetAllAsync() => throw new NotSupportedException();

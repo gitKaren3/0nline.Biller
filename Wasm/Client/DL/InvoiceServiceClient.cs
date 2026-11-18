@@ -20,6 +20,36 @@ namespace _0nline.Biller.Wasm.Client.DL
             => GetAndHandleAsync<PageOf<Invoice>>(
                 $"page/recent?page={page}&pageSize={pageSize}");
 
+        public Task<Result<PageOf<Invoice>>> SearchPageAsync(
+            InvoiceSearch search, int page, int pageSize)
+        {
+            ArgumentNullException.ThrowIfNull(search);
+
+            var query = new List<string>
+            {
+                $"page={page}",
+                $"pageSize={pageSize}"
+            };
+
+            if (!string.IsNullOrWhiteSpace(search.Text))
+                query.Add($"text={Uri.EscapeDataString(search.Text.Trim())}");
+
+            if (search.From is { } from)
+                query.Add($"from={from:yyyy-MM-dd}");
+
+            if (search.To is { } to)
+                query.Add($"to={to:yyyy-MM-dd}");
+
+            if (search.Statuses is { Length: > 0 } statuses)
+            {
+                foreach (var status in statuses)
+                    query.Add($"statuses={status}");
+            }
+
+            return GetAndHandleAsync<PageOf<Invoice>>(
+                $"page/search?{string.Join("&", query)}");
+        }
+
         public new Task<Result<Invoice>> CreateAsync(Invoice entity) => base.CreateAsync(entity);
         public new Task<Result<Invoice>> UpdateAsync(Invoice entity) => base.UpdateAsync(entity);
         public new Task<Result<Invoice?>> DeleteOrDeactivateAsync(int id) => base.DeleteOrDeactivateAsync(id);

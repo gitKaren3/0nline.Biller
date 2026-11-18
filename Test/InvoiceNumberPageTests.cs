@@ -138,6 +138,7 @@ public class InvoiceNumberPageTests : Base.MudTestContext, IAsyncLifetime
         public Task<Result<Invoice?>> GetOneAsync(int id) => throw new NotSupportedException();
         public Task<Result<PageOf<Invoice>>> GetPageAsync(int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<PageOf<Invoice>>> GetRecentPageAsync(int page, int pageSize) => throw new NotSupportedException();
+        public Task<Result<PageOf<Invoice>>> SearchPageAsync(InvoiceSearch search, int page, int pageSize) => throw new NotSupportedException();
         public Task<Result<Invoice[]>> GetAllAsync() => throw new NotSupportedException();
         public Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync()
             => throw new NotSupportedException();

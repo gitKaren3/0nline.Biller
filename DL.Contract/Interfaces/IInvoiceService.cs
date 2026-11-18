@@ -18,6 +18,14 @@ namespace _0nline.Biller.DL.Contract.Interfaces
         Task<Result<PageOf<Invoice>>> GetRecentPageAsync(int page, int pageSize);
 
         /// <summary>
+        /// One page of invoices matching a search, newest first. The text term is
+        /// matched against the invoice number, contact name and company name; the date
+        /// range and statuses narrow the same result.
+        /// </summary>
+        Task<Result<PageOf<Invoice>>> SearchPageAsync(
+            InvoiceSearch search, int page, int pageSize);
+
+        /// <summary>
         /// Finalizes a draft. A finalized invoice can no longer be edited and is
         /// the state from which a link can be sent.
         /// </summary>
