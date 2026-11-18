@@ -27,5 +27,11 @@ namespace _0nline.Biller.Api.Lib
             var result = await BaseService.GetLookupAsync();
             return Ok(result);
         }
+
+        [HttpGet("page")]
+        public virtual async Task<IActionResult> GetPage([FromQuery] int page = 1, [FromQuery] int pageSize = 25) {
+            var result = await BaseService.GetPageAsync(page, pageSize);
+            return Ok(result);
+        }
     }
 }
