@@ -59,8 +59,10 @@ items and offers 5/10/25/50. `Invoices.Page.razor` uses `MudPagination` and repo
 ## Saving an invoice and its lines
 
 `POST`/`PUT` carry the `Invoice` with `InvoiceLines`. The service does not trust the
-navigation graph: it copies only the line's own columns and writes the invoice and
-lines in **one transaction**.
+navigation graph: it copies only the line's own columns and keeps the line's
+`Version`, which is the token the update is matched on. A rebuild that dropped it would
+report every edit as a conflict. The invoice and lines are written in **one
+transaction**.
 
 Line reconciliation on `PUT`:
 

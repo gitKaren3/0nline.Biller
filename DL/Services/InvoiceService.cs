@@ -620,7 +620,13 @@ namespace _0nline.Biller.DL.Services
         /// Copies only the columns a line owns and fills in the tax defaults. The
         /// rate actually used is stored on the line, never re-derived at render time.
         /// </summary>
-        private static List<InvoiceLine> PrepareLines(Invoice invoice, InvoiceDefaults defaults)
+        /// <remarks>
+        /// The version is copied too. It is not a column the line owns, it is the token
+        /// the store matches the UPDATE against, so a clone that drops it saves as
+        /// version 0 and is refused as a conflict even when nobody else has touched the
+        /// invoice.
+        /// </remarks>
+        internal static List<InvoiceLine> PrepareLines(Invoice invoice, InvoiceDefaults defaults)
         {
             var lines = invoice.InvoiceLines ?? new List<InvoiceLine>();
             int minorUnits = invoice.CurrencyMinorUnits ?? 2;
@@ -646,6 +652,7 @@ namespace _0nline.Biller.DL.Services
                 return new InvoiceLine
                 {
                     ID = line.ID,
+                    Version = line.Version,
                     InvoiceID = invoice.ID,
                     ContractID = line.ContractID,
                     Description = line.Description?.Trim(),
@@ -661,7 +668,7 @@ namespace _0nline.Biller.DL.Services
             }).ToList();
         }
 
-        private readonly record struct InvoiceDefaults(TaxScheme? IssuerTaxSchemeID, decimal DefaultTaxRate);
+        internal readonly record struct InvoiceDefaults(TaxScheme? IssuerTaxSchemeID, decimal DefaultTaxRate);
 
         private static void ClearNavigation(Invoice invoice)
         {
