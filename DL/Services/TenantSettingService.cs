@@ -14,7 +14,6 @@ using _0nline.Shared.Location.Interfaces;
 using _0nline.Shared.Location.Models;
 using Dapper;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 namespace _0nline.Biller.DL.Services
 {
@@ -95,7 +94,7 @@ namespace _0nline.Biller.DL.Services
                 if (created.Successful && created.Value is TenantSetting createdSetting)
                     return Result<TenantSetting>.Success(createdSetting);
             }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            catch (Exception ex) when (IsUniqueViolation(ex))
             {
                 // Another request won the race; fall through to the read.
             }
@@ -162,7 +161,7 @@ namespace _0nline.Biller.DL.Services
                     return Result<TenantSetting>.Success(created);
                 return Result<TenantSetting>.Failure(result.ErrorCode, result.Errors);
             }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            catch (Exception ex) when (IsUniqueViolation(ex))
             {
                 // Another request created the row; re-read and update it.
                 var raced = await ReadAsync(tenantId);

@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\Shared\Contract\0nline.Shared.Contract.csproj" />
     <ProjectReference Include="..\..\Shared\Phone\0nline.Shared.Phone.csproj" />
     <ProjectReference Include="..\DL.Contract\0nline.Biller.DL.Contract.csproj" />
+    <ProjectReference Include="..\DL\0nline.Biller.DL.csproj" />
     <ProjectReference Include="..\Wasm\0nline.Biller.Wasm.csproj" />
   </ItemGroup>
 

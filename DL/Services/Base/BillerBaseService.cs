@@ -26,12 +26,20 @@ namespace _0nline.Biller.DL.Services.Base
             return entity != null ? Result<T?>.Success(entity) : Result<T?>.None();
         }
 
+        /// <summary>
+        /// Whether the row exists and belongs to the caller's tenant. The store answers
+        /// it with one scoped count rather than a full read, so a validation check on
+        /// another entity does not pay for navigation loading or augmentation.
+        /// </summary>
+        public new Task<bool> ExistsAsync(int id) => base.ExistsAsync(id);
+
         protected async Task<Result<T[]>> GetAllAsync()
         {
             var list = await base.GetAllAsync();
             return Result<T[]>.Success(list);
         }
 
+        // TODO make this protected and only surfaced by IDLReadableService's
         public Task<Result<PageOf<T>>> GetPageAsync(int page, int pageSize)
             => PageAsync(new PageRequest(page, pageSize));
 
@@ -40,13 +48,27 @@ namespace _0nline.Biller.DL.Services.Base
         /// an app service can expose a sort without accepting a column name from the
         /// caller. With no sort the store uses its primary-key order.
         /// </summary>
+        protected Task<Result<PageOf<T>>> PageAsync(
+            PageRequest page,
+            params DbSort<T>[] orderBy)
+            => PageAsync(page, predicate: null, parameters: null, orderBy);
+
+        /// <summary>
+        /// One page matching a caller-supplied predicate. The store still owns the
+        /// tenant and active filters, the count and paging; the app service owns the
+        /// app-specific predicate and its parameter values.
+        /// </summary>
         protected async Task<Result<PageOf<T>>> PageAsync(
             PageRequest page,
+            string? predicate,
+            IReadOnlyDictionary<string, object?>? parameters,
             params DbSort<T>[] orderBy)
         {
             try
             {
-                var result = await base.GetPageAsync(page, orderBy: orderBy);
+                var result = await base.GetPageAsync(
+                    page, predicate, parameters, orderBy: orderBy);
+
                 return Result<PageOf<T>>.Success(
                     new PageOf<T>(result.Items, result.TotalCount, result.Page, result.PageSize));
             }

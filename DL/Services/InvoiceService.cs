@@ -3,6 +3,8 @@ using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Biller.DL.Contract.Numbering;
+using _0nline.Biller.DL.Numbering;
+using _0nline.Biller.DL.Queries;
 using _0nline.Biller.DL.Reports;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Contract;
@@ -13,8 +15,6 @@ using _0nline.Shared.Db.Contract.Exceptions;
 using _0nline.Shared.Db.Contract.Interfaces;
 using _0nline.Shared.Db.Contract.Models;
 using _0nline.Shared.Location;
-using Dapper;
-using Npgsql;
 
 namespace _0nline.Biller.DL.Services
 {
@@ -28,6 +28,12 @@ namespace _0nline.Biller.DL.Services
         private readonly IInvoiceLineService _invoiceLineService;
         private readonly IInvoicePdfService _pdfService;
         private readonly ITenantSettingService _tenantSettings;
+        private readonly IContactService _contacts;
+        private readonly ICompanyService _companies;
+        private readonly ITenantRateService _tenantRates;
+        private readonly IRateTypeService _rateTypes;
+        private readonly IInvoiceQueries _queries;
+        private readonly IInvoiceNumberAllocator _numbers;
 
         public InvoiceService(
             IDbContextProvider<BillerDbConfig> ctx,
@@ -35,12 +41,24 @@ namespace _0nline.Biller.DL.Services
             ITenantContext tenancyContext,
             IInvoiceLineService invoiceLineService,
             IInvoicePdfService pdfService,
-            ITenantSettingService tenantSettings)
+            ITenantSettingService tenantSettings,
+            IContactService contacts,
+            ICompanyService companies,
+            ITenantRateService tenantRates,
+            IRateTypeService rateTypes,
+            IInvoiceQueries queries,
+            IInvoiceNumberAllocator numbers)
             : base(ctx, queryService, tenancyContext)
         {
             _invoiceLineService = invoiceLineService;
             _pdfService = pdfService;
             _tenantSettings = tenantSettings;
+            _contacts = contacts;
+            _companies = companies;
+            _tenantRates = tenantRates;
+            _rateTypes = rateTypes;
+            _queries = queries;
+            _numbers = numbers;
         }
 
         public new Task<Result<Invoice[]>> GetAllAsync() => base.GetAllAsync();
@@ -50,6 +68,35 @@ namespace _0nline.Biller.DL.Services
             => PageAsync(
                 new PageRequest(page, pageSize),
                 DbSort<Invoice>.Desc(invoice => invoice.ID));
+
+        /// <summary>
+        /// One page of invoices matching <paramref name="search"/>, newest first.
+        /// </summary>
+        /// <remarks>
+        /// The text term is ORed across the invoice number, the contact's name and the
+        /// company's name. The date range and statuses are ANDed with it, so a caller
+        /// can combine a search term with either filter.
+        /// </remarks>
+        public async Task<Result<PageOf<Invoice>>> SearchPageAsync(
+            InvoiceSearch search, int page, int pageSize)
+        {
+            ArgumentNullException.ThrowIfNull(search);
+
+            if (search.From is { } from && search.To is { } to && to.Date < from.Date)
+            {
+                return Result<PageOf<Invoice>>.Failure(
+                    ErrorCode.ValidationFailed,
+                    "The end date cannot be before the start date.");
+            }
+
+            var (predicate, parameters) = _queries.SearchPredicate(search);
+
+            return await PageAsync(
+                new PageRequest(page, pageSize),
+                predicate,
+                parameters,
+                DbSort<Invoice>.Desc(invoice => invoice.ID));
+        }
 
         public new Task<Result<Invoice>> CreateAsync(Invoice entity) => CreateWithLinesAsync(entity);
         public new Task<Result<Invoice>> UpdateAsync(Invoice entity) => UpdateWithLinesAsync(entity);
@@ -136,10 +183,7 @@ namespace _0nline.Biller.DL.Services
 
             var format = parsed!;
             var counter = tenantSetting.NextInvoiceNumber is int next && next > 0 ? next : 1;
-            var invoiceDate = TodayIn(tenantSetting.TimeZoneId);
-
-            using var conn = Connection;
-            var tenantId = RequireTenantId();
+            var invoiceDate = TenantClock.TodayIn(tenantSetting.TimeZoneId);
 
             const int batchSize = 100;
             for (var batch = 0; batch < 10; batch++)
@@ -149,12 +193,7 @@ namespace _0nline.Biller.DL.Services
                     .Select(number => format.Render(number, invoiceDate))
                     .ToArray();
 
-                var issued = (await conn.QueryAsync<string>(
-                    $@"SELECT {Quoted("InvoiceNumber")}
-                         FROM {Quoted("Invoice")}
-                        WHERE {Quoted("TenantID")} = @TenantId
-                          AND {Quoted("InvoiceNumber")} = ANY(@Candidates)",
-                    new { TenantId = tenantId, Candidates = candidates }))
+                var issued = (await _queries.IssuedNumbersAsync(candidates))
                     .ToHashSet(StringComparer.Ordinal);
 
                 for (var offset = 0; offset < candidates.Length; offset++)
@@ -186,17 +225,11 @@ namespace _0nline.Biller.DL.Services
             if (string.IsNullOrEmpty(trimmed))
                 return Result<bool>.Success(false);
 
-            var tenantId = RequireTenantId();
+            var found = await AnyAsync(
+                $"{Quoted("InvoiceNumber")} = @Number AND {Quoted("ID")} <> @Id",
+                new { Number = trimmed, Id = excludeInvoiceId });
 
-            using var conn = Connection;
-            var found = await conn.ExecuteScalarAsync<int?>(
-                $@"SELECT 1 FROM {Quoted("Invoice")}
-                    WHERE {Quoted("TenantID")} = @TenantId
-                      AND {Quoted("InvoiceNumber")} = @Number
-                      AND {Quoted("ID")} <> @ExcludeId",
-                new { TenantId = tenantId, Number = trimmed, ExcludeId = excludeInvoiceId });
-
-            return Result<bool>.Success(found is not null);
+            return Result<bool>.Success(found);
         }
 
         /// <summary>
@@ -211,32 +244,8 @@ namespace _0nline.Biller.DL.Services
             if (contactId <= 0 || rateTypeId <= 0)
                 return Result<decimal?>.Success(null);
 
-            var tenantId = RequireTenantId();
-
-            using var conn = Connection;
-            var qty = await conn.ExecuteScalarAsync<decimal?>(
-                @"SELECT il.""Qty""
-                    FROM ""InvoiceLine"" il
-                    JOIN ""Invoice"" i ON i.""ID"" = il.""InvoiceID""
-                   WHERE i.""TenantID"" = @TenantId
-                     AND i.""IssuedToContactID"" = @ContactId
-                     AND i.""CompanyID"" IS NOT DISTINCT FROM @CompanyId
-                     AND i.""InvoiceStatusID"" NOT IN (@Draft, @Cancelled)
-                     AND i.""ID"" <> @ExcludeId
-                     AND il.""RateTypeID"" = @RateTypeId
-                     AND il.""Qty"" > 0
-                   ORDER BY i.""InvoiceDate"" DESC, i.""ID"" DESC, il.""ID"" DESC
-                   LIMIT 1",
-                new
-                {
-                    TenantId = tenantId,
-                    ContactId = contactId,
-                    CompanyId = companyId,
-                    Draft = (short)InvoiceStatus.Draft,
-                    Cancelled = (short)InvoiceStatus.Cancelled,
-                    ExcludeId = excludeInvoiceId,
-                    RateTypeId = rateTypeId
-                });
+            var qty = await _queries.LastQuantityAsync(
+                contactId, companyId, rateTypeId, excludeInvoiceId);
 
             return Result<decimal?>.Success(qty);
         }
@@ -272,42 +281,35 @@ namespace _0nline.Biller.DL.Services
 
             ClearNavigation(invoice);
 
-            using var conn = Connection;
-            conn.Open();
-            using var tran = conn.BeginTransaction();
-
             try
             {
-                if (autoNumber)
-                    invoice.InvoiceNumber = await AllocateInvoiceNumberAsync(
-                        conn, tran, invoice.InvoiceDate!.Value);
-
-                await InsertAsync(invoice, invoiceProperties, conn, tran);
-
-                if (!autoNumber)
-                    await AdvanceInvoiceCounterAsync(conn, tran, invoice.InvoiceNumber);
-
-                foreach (var line in lines)
+                await InTransactionAsync(async (conn, tran) =>
                 {
-                    line.ID = 0;
-                    line.InvoiceID = invoice.ID;
-                    await InsertAsync(line, lineProperties, conn, tran);
-                }
+                    if (autoNumber)
+                        invoice.InvoiceNumber = await AllocateInvoiceNumberAsync(
+                            conn, tran, invoice.InvoiceDate!.Value);
 
-                tran.Commit();
+                    await InsertAsync(invoice, invoiceProperties, conn, tran);
+
+                    if (!autoNumber)
+                        await AdvanceInvoiceCounterAsync(conn, tran, invoice.InvoiceNumber);
+
+                    foreach (var line in lines)
+                    {
+                        line.ID = 0;
+                        line.InvoiceID = invoice.ID;
+                        await InsertAsync(line, lineProperties, conn, tran);
+                    }
+
+                    return invoice.ID;
+                });
             }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            catch (Exception ex) when (IsUniqueViolation(ex))
             {
                 // The service checks before writing; this is the guarantee under a race.
-                tran.Rollback();
                 return Result<Invoice>.Failure(
                     ErrorCode.Conflict,
                     $"Invoice number {invoice.InvoiceNumber} is already in use.");
-            }
-            catch
-            {
-                tran.Rollback();
-                throw;
             }
 
             return await ReloadAsync(invoice.ID);
@@ -358,53 +360,38 @@ namespace _0nline.Biller.DL.Services
 
             ClearNavigation(invoice);
 
-            using var conn = Connection;
-            conn.Open();
-            using var tran = conn.BeginTransaction();
-
             try
             {
-                await UpdateAsync(invoice, invoiceProperties, conn, tran);
-
-                var kept = new HashSet<int>();
-                foreach (var line in lines)
+                await InTransactionAsync(async (conn, tran) =>
                 {
-                    line.InvoiceID = invoice.ID;
+                    await UpdateAsync(invoice, invoiceProperties, conn, tran);
 
-                    if (line.ID == 0)
-                        await InsertAsync(line, lineProperties, conn, tran);
-                    else
-                        await UpdateAsync(line, lineProperties, conn, tran);
+                    var kept = new HashSet<int>();
+                    foreach (var line in lines)
+                    {
+                        line.InvoiceID = invoice.ID;
 
-                    kept.Add(line.ID);
-                }
+                        if (line.ID == 0)
+                            await InsertAsync(line, lineProperties, conn, tran);
+                        else
+                            await UpdateAsync(line, lineProperties, conn, tran);
 
-                var removed = existing.Keys.Where(id => !kept.Contains(id)).ToArray();
-                if (removed.Length > 0)
-                {
-                    await conn.ExecuteAsync(
-                        $@"DELETE FROM {Quoted("InvoiceLine")}
-                            WHERE {Quoted("InvoiceID")} = @InvoiceId
-                              AND {Quoted("ID")} = ANY(@Ids)",
-                        new { InvoiceId = invoice.ID, Ids = removed },
-                        tran);
-                }
+                        kept.Add(line.ID);
+                    }
 
-                await AdvanceInvoiceCounterAsync(conn, tran, invoice.InvoiceNumber);
+                    var removed = existing.Keys.Where(id => !kept.Contains(id)).ToArray();
+                    await _queries.DeleteLinesAsync(invoice.ID, removed, conn, tran);
 
-                tran.Commit();
+                    await AdvanceInvoiceCounterAsync(conn, tran, invoice.InvoiceNumber);
+
+                    return invoice.ID;
+                });
             }
             catch (DbConcurrencyException ex)
             {
                 // Someone saved this invoice (or its tenant counter) after it was read.
                 // The version moved, so the UPDATE matched nothing and nothing landed.
-                tran.Rollback();
                 return Result<Invoice>.Failure(ErrorCode.Conflict, ex.Message);
-            }
-            catch
-            {
-                tran.Rollback();
-                throw;
             }
 
             return await ReloadAsync(invoice.ID);
@@ -443,84 +430,39 @@ namespace _0nline.Biller.DL.Services
             invoice.CurrencyMinorUnits = (short)currency.MinorUnits;
 
             if (invoice.InvoiceDate is null)
-                invoice.InvoiceDate = TodayIn(tenantSetting.TimeZoneId);
+                invoice.InvoiceDate = TenantClock.TodayIn(tenantSetting.TimeZoneId);
 
-            using var conn = Connection;
-            var tenantId = RequireTenantId();
-
-            // The issuer is the tenant's own company. A null scheme means it has not
-            // registered for tax, which is a business fact, not an error.
-            short? issuerScheme = await conn.ExecuteScalarAsync<short?>(
-                @"SELECT c.""TaxSchemeID""
-                    FROM ""Tenant"" t
-                    LEFT JOIN ""Company"" c ON c.""ID"" = t.""CompanyID""
-                   WHERE t.""ID"" = @TenantId",
-                new { TenantId = tenantId });
+            var issuerScheme = await _queries.IssuerTaxSchemeAsync();
 
             return (new InvoiceDefaults(
                 issuerScheme is null ? null : (TaxScheme)issuerScheme.Value,
                 tenantSetting.DefaultTaxRate ?? 0m), null);
         }
 
-        private static DateTime TodayIn(string? timeZoneId)
-        {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(timeZoneId)
-                    && TimeZoneInfo.TryFindSystemTimeZoneById(timeZoneId.Trim(), out var zone))
-                {
-                    return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Date;
-                }
-            }
-            catch
-            {
-                // An unusable zone falls back to UTC rather than blocking the invoice.
-            }
-
-            return DateTime.UtcNow.Date;
-        }
-
         /// <summary>
-        /// Draws the next number from the tenant's counter, formats it and advances the
-        /// counter in one statement, so two concurrent creates cannot receive the same
-        /// number. Runs in the caller's transaction: a failed create rolls the number
-        /// back too. A counter that has fallen behind numbers already issued (the tenant
-        /// may reset it, or type numbers by hand) advances again instead of clashing.
+        /// Draws the next number from the tenant's counter and formats it. Runs in the
+        /// caller's transaction: a failed create rolls the claimed number back too. A
+        /// counter that has fallen behind numbers already issued (the tenant may reset
+        /// it, or type numbers by hand) advances again instead of clashing.
         /// </summary>
         private async Task<string> AllocateInvoiceNumberAsync(
             System.Data.IDbConnection conn, System.Data.IDbTransaction tran, DateTime invoiceDate)
         {
-            var tenantId = RequireTenantId();
-
             for (var attempt = 0; attempt < 1000; attempt++)
             {
-                var claimed = await conn.QuerySingleOrDefaultAsync<InvoiceNumberAllocation>(
-                    $@"UPDATE {Quoted("TenantSetting")}
-                          SET {Quoted("NextInvoiceNumber")} = COALESCE({Quoted("NextInvoiceNumber")}, 1) + 1
-                        WHERE {Quoted("TenantID")} = @TenantId
-                    RETURNING {Quoted("InvoiceNumberFormat")} AS ""Format"",
-                              COALESCE({Quoted("NextInvoiceNumber")}, 2) - 1 AS ""Number""",
-                    new { TenantId = tenantId },
-                    tran);
+                var claimed = await _numbers.ClaimAsync(conn, tran);
 
                 if (claimed is null)
                     throw new InvalidOperationException(
                         "Billing settings are required to number an invoice.");
 
-                if (!InvoiceNumberFormat.TryParse(claimed.Format, out var format, out var error))
+                if (!InvoiceNumberFormat.TryParse(claimed.Value.Format, out var format, out var error))
                     throw new InvalidOperationException(
                         error ?? "The invoice number format is not usable.");
 
-                var number = format!.Render(claimed.Number, invoiceDate);
+                var number = format!.Render(claimed.Value.Number, invoiceDate);
 
-                var taken = await conn.ExecuteScalarAsync<int?>(
-                    $@"SELECT 1 FROM {Quoted("Invoice")}
-                        WHERE {Quoted("TenantID")} = @TenantId
-                          AND {Quoted("InvoiceNumber")} = @Number",
-                    new { TenantId = tenantId, Number = number },
-                    tran);
-
-                if (taken is null)
+                if (!await _queries.NumberTakenAsync(number, conn, tran))
                     return number;
             }
 
@@ -538,20 +480,7 @@ namespace _0nline.Biller.DL.Services
             if (!InvoiceNumberFormat.TryReadNumber(invoiceNumber, out var used) || used >= int.MaxValue)
                 return;
 
-            await conn.ExecuteAsync(
-                $@"UPDATE {Quoted("TenantSetting")}
-                      SET {Quoted("NextInvoiceNumber")} =
-                          GREATEST(COALESCE({Quoted("NextInvoiceNumber")}, 1), @Next)
-                    WHERE {Quoted("TenantID")} = @TenantId",
-                new { Next = used + 1, TenantId = RequireTenantId() },
-                tran);
-        }
-
-        /// <summary>The row an allocation claim returns.</summary>
-        private sealed class InvoiceNumberAllocation
-        {
-            public string? Format { get; set; }
-            public int Number { get; set; }
+            await _numbers.AdvanceAsync(conn, tran, used);
         }
 
         private async Task<string?> ValidateAsync(Invoice invoice, InvoiceDefaults defaults)
@@ -613,41 +542,26 @@ namespace _0nline.Biller.DL.Services
                 return "The business is not registered for tax, so no tax can be charged.";
             }
 
-            using var conn = Connection;
-            var tenantId = RequireTenantId();
-
             // A number supplied by the caller must be unique within the tenant. A blank
             // number is auto-assigned and cannot clash, so only check a supplied one.
             if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
             {
                 var number = invoice.InvoiceNumber.Trim();
-                var duplicate = await conn.ExecuteScalarAsync<int?>(
-                    @"SELECT 1 FROM ""Invoice""
-                      WHERE ""TenantID"" = @TenantId
-                        AND ""InvoiceNumber"" = @Number
-                        AND ""ID"" <> @Id",
-                    new { TenantId = tenantId, Number = number, Id = invoice.ID });
+                var duplicate = await AnyAsync(
+                    $"{Quoted("InvoiceNumber")} = @Number AND {Quoted("ID")} <> @Id",
+                    new { Number = number, Id = invoice.ID });
 
-                if (duplicate is not null)
+                if (duplicate)
                     return $"Invoice number {number} is already used.";
             }
 
-            var contactExists = await conn.ExecuteScalarAsync<int?>(
-                @"SELECT 1 FROM ""Contact"" WHERE ""ID"" = @Id AND ""TenantID"" = @TenantId",
-                new { Id = invoice.IssuedToContactID, TenantId = tenantId });
-
-            if (contactExists is null)
+            // Ownership is the owning service's question, and it answers under the same
+            // tenant predicate as every other store read.
+            if (!await _contacts.ExistsAsync(invoice.IssuedToContactID))
                 return "The selected contact does not belong to this workspace.";
 
-            if (invoice.CompanyID is int companyId)
-            {
-                var companyExists = await conn.ExecuteScalarAsync<int?>(
-                    @"SELECT 1 FROM ""Company"" WHERE ""ID"" = @Id AND ""TenantID"" = @TenantId",
-                    new { Id = companyId, TenantId = tenantId });
-
-                if (companyExists is null)
-                    return "The selected company does not belong to this workspace.";
-            }
+            if (invoice.CompanyID is int companyId && !await _companies.ExistsAsync(companyId))
+                return "The selected company does not belong to this workspace.";
 
             // A source rate is optional provenance. When it is present the line must
             // still equal the captured row: rates are immutable, so a mismatch can
@@ -660,11 +574,15 @@ namespace _0nline.Biller.DL.Services
 
             if (rateTypeIds.Length > 0)
             {
-                var validTypes = (await conn.QueryAsync<short>(
-                    @"SELECT ""ID"" FROM ""RateType"" WHERE ""ID"" = ANY(@Ids)",
-                    new { Ids = rateTypeIds })).ToHashSet();
+                // Rate types are a fixed lookup table, so the whole set is the cheapest
+                // and most honest answer: it is not filtered by Active, and re-saving an
+                // old invoice must not fail because a rate type was retired since.
+                var known = await _rateTypes.GetAllAsync();
+                if (!known.Successful || known.Value is null)
+                    return known.Errors.FirstOrDefault() ?? "The rate types could not be read.";
 
-                if (rateTypeIds.Any(id => !validTypes.Contains(id)))
+                var knownIds = known.Value.Select(type => type.ID).ToHashSet();
+                if (rateTypeIds.Any(id => !knownIds.Contains(id)))
                     return "A line names an unknown rate type.";
             }
 
@@ -676,12 +594,11 @@ namespace _0nline.Biller.DL.Services
 
             if (sourceRateIds.Length > 0)
             {
-                var capturedRates = (await conn.QueryAsync<TenantRate>(
-                    @"SELECT ""ID"", ""RateTypeID"", ""RateIncl""
-                      FROM ""TenantRate""
-                      WHERE ""TenantID"" = @TenantId AND ""ID"" = ANY(@Ids)",
-                    new { TenantId = tenantId, Ids = sourceRateIds }))
-                    .ToDictionary(rate => rate.ID);
+                var captured = await _tenantRates.GetCapturedAsync(sourceRateIds);
+                if (!captured.Successful || captured.Value is null)
+                    return captured.Errors.FirstOrDefault() ?? "The captured rates could not be read.";
+
+                var capturedRates = captured.Value.ToDictionary(rate => rate.ID);
 
                 foreach (var line in lines.Where(line => line.TenantRateID is > 0))
                 {

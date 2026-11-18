@@ -107,10 +107,12 @@ and the messages, and `TenantSettingService.Validate` calls it. A new tenant's r
 seeded with `InvoiceNumberFormat.DefaultFormat`, which is `#{n:00000}`.
 
 When `InvoiceNumber` is blank on create the service draws the number, formats it and
-increments the counter in one statement inside the invoice's transaction, so a failed
-create does not consume a number. If the counter has fallen behind numbers already issued
-(the tenant reset it, or typed numbers by hand) the claim skips them and heals the
-counter.
+claims the counter inside the invoice's transaction, so a failed create does not consume
+a number. The claim is a compare-and-swap on `NextInvoiceNumber` (read, then update where
+the value is unchanged): only one writer can move it, the loser reads again, and the
+increment is expressed without a returned-row clause so it stays portable. If the counter
+has fallen behind numbers already issued (the tenant reset it, or typed numbers by hand)
+the claim skips them and heals the counter.
 
 A number supplied by the client is kept as typed, and it moves the counter with it when
 its trailing digits are at or above the counter, so the next automatic number continues

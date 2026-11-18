@@ -26,6 +26,14 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<TenantRate[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
+        /// <summary>
+        /// The captured rates among <paramref name="ids"/> that belong to this tenant,
+        /// read in one statement. The tenant predicate comes from the store, so an id
+        /// from another workspace is simply absent.
+        /// </summary>
+        public async Task<Result<TenantRate[]>> GetCapturedAsync(IEnumerable<int> ids)
+            => Result<TenantRate[]>.Success(await GetByIdsAsync(ids));
+
         public new async Task<Result<TenantRate>> CreateAsync(TenantRate entity)
         {
             if (entity.RateTypeID <= 0)

@@ -1,4 +1,6 @@
 ﻿using _0nline.Biller.DL.Contract.Models;
+using _0nline.Biller.DL.Numbering;
+using _0nline.Biller.DL.Queries;
 using _0nline.Biller.DL.Reports;
 using _0nline.Shared.Db.Service.Extensions;
 using _0nline.Shared.Services;
@@ -25,6 +27,12 @@ namespace _0nline.Biller.DL.Extensions
             // for an InvoicePdfModel. Add one line per document type here.
             services.AddScoped<IPdfDocument<InvoicePdfModel>, InvoicePdfDocument>();
             services.AddScoped<IInvoicePdfService, InvoicePdfService>();
+
+            // Invoice-specific reads and the number counter are DL implementation
+            // details, not API surfaces, so they are registered explicitly rather than
+            // discovered as a DbStore or a query provider.
+            services.AddScoped<IInvoiceQueries, InvoiceQueries>();
+            services.AddScoped<IInvoiceNumberAllocator, InvoiceNumberAllocator>();
 
         }
     }
