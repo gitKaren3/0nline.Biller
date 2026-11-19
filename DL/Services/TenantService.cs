@@ -2,6 +2,7 @@ using _0nline.Biller.DL.Contract.Enums;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Queries;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Auth.Contract;
 using _0nline.Shared.Contract;
@@ -9,9 +10,6 @@ using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Interfaces;
-using Dapper;
-using Npgsql;
-using System.Data;
 using System.Text.Json;
 
 namespace _0nline.Biller.DL.Services
@@ -23,6 +21,9 @@ namespace _0nline.Biller.DL.Services
         private IFileStoreService _fileStoreService { get; }
         private IImageService _imageService { get; }
         private ITenantSettingService _tenantSettings { get; }
+        private ITenantQueries _queries { get; }
+        private IContactService _contacts { get; }
+        private ICompanyService _companies { get; }
 
         public TenantService(IDbContextProvider<BillerDbConfig> ctx
                             , ISqlQueryProvider<Tenant> queryService
@@ -31,7 +32,10 @@ namespace _0nline.Biller.DL.Services
                             , ITenantContext tenancyContext
                             , IImageService imageService
                             , IFileStoreService fileStoreService
-                            , ITenantSettingService tenantSettings)
+                            , ITenantSettingService tenantSettings
+                            , ITenantQueries queries
+                            , IContactService contacts
+                            , ICompanyService companies)
             : base(ctx, queryService, tenancyContext)
         {
             _authService = authService;
@@ -39,6 +43,9 @@ namespace _0nline.Biller.DL.Services
             _fileStoreService = fileStoreService;
             _imageService = imageService;
             _tenantSettings = tenantSettings;
+            _queries = queries;
+            _contacts = contacts;
+            _companies = companies;
         }
 
         public new Task<Result<Tenant>> CreateAsync(Tenant entity) => CreateTenantAsync(entity);
@@ -73,7 +80,7 @@ namespace _0nline.Biller.DL.Services
             {
                 return await base.CreateAsync(entity);
             }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            catch (Exception ex) when (IsUniqueViolation(ex))
             {
                 // Two tabs can pass the pre-check together; the unique index on
                 // Tenant.UserId is the real guard. Report the race, not a 500.
@@ -144,17 +151,14 @@ namespace _0nline.Biller.DL.Services
 
         public async Task<Result<Tenant?>> GetTenantByUserIdAsync(long userId)
         {
-            using var conn = Connection;
-            string sql = $"SELECT * FROM {Quoted(_tableName)} WHERE {Quoted("UserId")} = @UserId";
-
-            var entity = await conn.QueryFirstOrDefaultAsync<Tenant>(sql, new { UserId = userId });
-            if (entity != null)
+            var entity = await GetFirstAsync(new Dictionary<string, object?>
             {
-                await LoadNavigationPropertiesAsync(entity, conn);
-                return Result<Tenant?>.Success(entity);
-            }
-            else
-                return Result<Tenant?>.None();
+                ["UserId"] = userId
+            });
+
+            return entity is null
+                ? Result<Tenant?>.None()
+                : Result<Tenant?>.Success(entity);
         }
 
         /// <summary>
@@ -330,13 +334,13 @@ namespace _0nline.Biller.DL.Services
             int tenantId = _tenantContext.TenantId
                 ?? throw new UnauthorizedAccessException("A tenantId claim is required.");
 
-            using var conn = Connection;
+            var current = await GetFirstAsync(new Dictionary<string, object?>
+            {
+                ["ID"] = tenantId,
+                ["UserId"] = userId
+            });
 
-            var current = await conn.QuerySingleOrDefaultAsync<Tenant>(
-                $"SELECT * FROM {Quoted(_tableName)} WHERE {Quoted("ID")} = @Id AND {Quoted("UserId")} = @UserId",
-                new { Id = tenantId, UserId = userId });
-
-            if (current == null)
+            if (current is null)
                 throw new KeyNotFoundException("Tenant not found.");
 
             if (current.Active == false)
@@ -350,22 +354,16 @@ namespace _0nline.Biller.DL.Services
             int? newContact = contactId ?? current.ContactID;
             int? newCompany = companyId ?? current.CompanyID;
 
-            if (newContact.HasValue
-                && !await BelongsToTenantAsync(conn, "Contact", newContact.Value, tenantId))
-            {
+            // Ownership is the owning service's answer, under the claim, which is this
+            // tenant: a contact or company from another workspace is simply absent.
+            if (newContact.HasValue && !await _contacts.ExistsAsync(newContact.Value))
                 throw new ArgumentException("The contact does not belong to this tenant.");
-            }
 
-            if (newCompany.HasValue
-                && !await BelongsToTenantAsync(conn, "Company", newCompany.Value, tenantId))
-            {
+            if (newCompany.HasValue && !await _companies.ExistsAsync(newCompany.Value))
                 throw new ArgumentException("The company does not belong to this tenant.");
-            }
 
-            int updated = await conn.ExecuteAsync(
-                $"UPDATE {Quoted(_tableName)} SET {Quoted("ContactID")} = @ContactID, {Quoted("CompanyID")} = @CompanyID"
-                + $" WHERE {Quoted("ID")} = @Id AND {Quoted("UserId")} = @UserId",
-                new { ContactID = newContact, CompanyID = newCompany, Id = tenantId, UserId = userId });
+            int updated = await _queries.AttachProfileAsync(
+                tenantId, userId, newContact, newCompany);
 
             if (updated == 0)
                 throw new KeyNotFoundException("Tenant not found.");
@@ -380,11 +378,7 @@ namespace _0nline.Biller.DL.Services
         {
             var userId = RequireUserId();
 
-            using var conn = Connection;
-            int count = await conn.ExecuteAsync(
-                $"UPDATE {Quoted(_tableName)} SET {Quoted("Active")} = FALSE, {Quoted("UserId")} = NULL"
-                + $" WHERE {Quoted("ID")} = @Id AND {Quoted("UserId")} = @UserId",
-                new { Id = tenantId, UserId = userId });
+            int count = await _queries.CloseAsync(tenantId, userId);
 
             if (count == 0)
                 return Result.NotFound(string.Empty, "Tenant not found.");
@@ -408,107 +402,37 @@ namespace _0nline.Biller.DL.Services
             var userId = RequireUserId();
             var appId = _tenantContext.AppId;
 
-            using var conn = Connection;
-            if (conn.State != ConnectionState.Open)
-                conn.Open();
-
-            using var tran = conn.BeginTransaction();
-            try
+            var stored = await InTransactionAsync(async (conn, tran) =>
             {
-                long? owner = await conn.ExecuteScalarAsync<long?>(
-                    $"SELECT {Quoted("UserId")} FROM {Quoted(_tableName)} WHERE {Quoted("ID")} = @Id",
-                    new { Id = tenantId }, tran);
+                long? owner = await _queries.GetOwnerIdAsync(tenantId, conn, tran);
 
                 if (owner != userId)
                     throw new UnauthorizedAccessException("This tenant does not belong to the signed-in user.");
 
-                var imageUrls = (await conn.QueryAsync<string>(
-                    "SELECT \"Url\" FROM \"Image\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran)).ToList();
+                // Read the file names before the rows that reference them go.
+                var files = await _queries.GetFilesAsync(tenantId, conn, tran);
+                await _queries.DeleteGraphAsync(tenantId, conn, tran);
+                return files;
+            });
 
-                var fileUrls = (await conn.QueryAsync<string>(
-                    "SELECT \"Url\" FROM \"File\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran)).ToList();
+            // Physical files are removed after the commit: a rollback must never leave
+            // rows pointing at deleted files.
+            foreach (var url in stored.ImageUrls)
+                await _fileStoreService.DeleteAsync($"{appId}/{url}", isPublic: true);
 
-                // Break the tenant -> profile edges first; the rest is leaf-first.
-                await conn.ExecuteAsync(
-                    $"UPDATE {Quoted(_tableName)} SET {Quoted("ContactID")} = NULL, {Quoted("CompanyID")} = NULL"
-                    + $" WHERE {Quoted("ID")} = @Id",
-                    new { Id = tenantId }, tran);
+            foreach (var url in stored.FileUrls)
+                await _fileStoreService.DeleteAsync($"{appId}/{url}", isPublic: false);
 
-                await conn.ExecuteAsync(
-                    @"DELETE FROM ""CompanyContactLink""
-                      WHERE ""CompanyID"" IN (SELECT ""ID"" FROM ""Company"" WHERE ""TenantID"" = @Id)
-                         OR ""ContactID"" IN (SELECT ""ID"" FROM ""Contact"" WHERE ""TenantID"" = @Id)",
-                    new { Id = tenantId }, tran);
-
-                await conn.ExecuteAsync(
-                    @"DELETE FROM ""InvoiceLine""
-                      WHERE ""InvoiceID"" IN (SELECT ""ID"" FROM ""Invoice"" WHERE ""TenantID"" = @Id)",
-                    new { Id = tenantId }, tran);
-
-                await conn.ExecuteAsync(
-                    "DELETE FROM \"Invoice\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran);
-
-                await conn.ExecuteAsync(
-                    "DELETE FROM \"TenantRate\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran);
-
-                // Leaf table. The FK also cascades from Tenant, but the explicit
-                // delete keeps the order readable and independent of that.
-                await conn.ExecuteAsync(
-                    "DELETE FROM \"BankAccount\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran);
-
-                // Company references Contact (BillingContactID) and Image
-                // (LogoImageID), so it must be removed before either.
-                await conn.ExecuteAsync(
-                    "DELETE FROM \"Company\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran);
-
-                await conn.ExecuteAsync(
-                    "DELETE FROM \"Image\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran);
-
-                await conn.ExecuteAsync(
-                    "DELETE FROM \"Contact\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran);
-
-                await conn.ExecuteAsync(
-                    "DELETE FROM \"File\" WHERE \"TenantID\" = @Id",
-                    new { Id = tenantId }, tran);
-
-                await conn.ExecuteAsync(
-                    $"DELETE FROM {Quoted(_tableName)} WHERE {Quoted("ID")} = @Id",
-                    new { Id = tenantId }, tran);
-
-                tran.Commit();
-
-                // Physical files are removed after the commit: a rollback must
-                // never leave rows pointing at deleted files.
-                foreach (var url in imageUrls)
-                    await _fileStoreService.DeleteAsync($"{appId}/{url}", isPublic: true);
-
-                foreach (var url in fileUrls)
-                    await _fileStoreService.DeleteAsync($"{appId}/{url}", isPublic: false);
-
-                try
-                {
-                    await _authService.RemoveUserSubscriptionAsync(userId.ToString(), appId);
-                }
-                catch
-                {
-                    // The workspace is already gone; membership cleanup is best effort.
-                }
-
-                return Result.Success();
+            try
+            {
+                await _authService.RemoveUserSubscriptionAsync(userId.ToString(), appId);
             }
             catch
             {
-                tran.Rollback();
-                throw;
+                // The workspace is already gone; membership cleanup is best effort.
             }
+
+            return Result.Success();
         }
 
         protected override async Task<Tenant> SingleAugment(Tenant tenant)
@@ -545,11 +469,5 @@ namespace _0nline.Biller.DL.Services
             return (Tier)tier.ID;
         }
 
-        private static async Task<bool> BelongsToTenantAsync(
-            IDbConnection conn, string table, int id, int tenantId)
-        {
-            string sql = $"SELECT COUNT(1) FROM \"{table}\" WHERE \"ID\" = @Id AND \"TenantID\" = @TenantId";
-            return await conn.ExecuteScalarAsync<int>(sql, new { Id = id, TenantId = tenantId }) > 0;
-        }
     }
 }

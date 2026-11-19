@@ -33,6 +33,7 @@ namespace _0nline.Biller.DL.Extensions
             // discovered as a DbStore or a query provider.
             services.AddScoped<IInvoiceQueries, InvoiceQueries>();
             services.AddScoped<IInvoiceNumberAllocator, InvoiceNumberAllocator>();
+            services.AddScoped<ITenantQueries, TenantQueries>();
 
             // The remaining app queries: statements the entity store cannot express.
             services.AddScoped<IBankAccountQueries, BankAccountQueries>();
