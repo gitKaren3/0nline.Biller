@@ -118,6 +118,26 @@ namespace _0nline.Biller.Wasm.Client.DL
             }
         }
 
+        /// <summary>POSTs a body and reads a binary response such as a PDF preview.</summary>
+        protected async Task<Result<byte[]>> PostBytesAsync<TRequest>(string url, TRequest data)
+        {
+            try
+            {
+                var response = await Http.PostAsJsonAsync(url, data);
+
+                if (!response.IsSuccessStatusCode)
+                    return Result<byte[]>.Failure(
+                        ErrorCode.ServerError,
+                        $"The server returned {(int)response.StatusCode}.");
+
+                return Result<byte[]>.Success(await response.Content.ReadAsByteArrayAsync());
+            }
+            catch (Exception ex)
+            {
+                return Result<byte[]>.Failure(ErrorCode.ServerError, ex.Message);
+            }
+        }
+
         protected async Task<Result<TResponse>> PutAndHandleAsync<TRequest, TResponse>(string url, TRequest data)
         {
             try

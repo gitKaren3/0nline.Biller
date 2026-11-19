@@ -93,6 +93,7 @@ public class InvoicesPageTests : Base.MudTestContext, IAsyncLifetime
         public Task<Result<Invoice?>> DeleteOrDeactivateAsync(int id) => throw new NotSupportedException();
         public Task<Result<Invoice>> FinalizeAsync(int id) => throw new NotSupportedException();
         public Task<Result<byte[]>> PreviewAsync(int id) => throw new NotSupportedException();
+        public Task<Result<byte[]>> PreviewDraftAsync(Invoice invoice) => throw new NotSupportedException();
         public Task<Result<InvoiceNumberPreview>> PeekInvoiceNumberAsync() => throw new NotSupportedException();
         public Task<Result<bool>> InvoiceNumberExistsAsync(string? number, int excludeInvoiceId = 0)
             => throw new NotSupportedException();

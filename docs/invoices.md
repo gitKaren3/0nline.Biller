@@ -31,6 +31,7 @@ Draft ──finalize──► Finalized ──send──► Issued
 | `PUT api/biller/invoice` | Update a draft and reconcile its lines (see below). |
 | `POST api/biller/invoice/{id}/finalize` | Draft → Finalized. |
 | `GET api/biller/invoice/{id}/preview.pdf` | Render the saved invoice. No snapshot, no access count. |
+| `POST api/biller/invoice/preview.pdf` | Render an unsaved draft from the posted invoice. No write, no number claim. |
 | `GET api/biller/invoice/next-number` | The number the next invoice will draw. Does **not** consume it. |
 | `GET api/biller/invoice/number-exists?number=…&id=…` | Whether the number is already used. Advisory; the save is the guarantee. |
 | `GET api/biller/invoice/last-qty?contactId=…&companyId=…&rateTypeId=…` | The last quantity for that client and rate type, used to prefill a line. |
@@ -139,10 +140,12 @@ afterwards, and changing the number again brings it back into line.
 
 ## Preview
 
-The editor must save before previewing: `preview.pdf` renders the **saved** invoice.
-That is what makes the preview and the mailed document identical. The response is a
-PDF; the client helper is `InvoiceServiceClient.PreviewAsync(id)`, which returns bytes
-and can be turned into a blob URL in the browser.
+A draft is previewed from the **posted, in-memory invoice**, so the editor does not
+have to save first. The server fills in the line tax fields on that request's copy,
+renders a PDF and writes nothing: no row, no number claim and no snapshot. A
+finalized invoice still renders its saved row. The response is a PDF; the client
+helpers are `InvoiceServiceClient.PreviewDraftAsync(invoice)` and
+`PreviewAsync(id)`, returned as bytes for a blob URL in the browser.
 
 ## Tax and currency
 
@@ -165,10 +168,10 @@ tenant (`TenantID` is unique) and it is created by the first-login ensure step.
   editing either Excl or Incl in the editor writes the inclusive value.
   The rate, scheme and optional note are stored on the line, so a later settings
   change cannot alter an issued invoice.
-- **The snapshot freezes all of it.** `InvoicePdfModel` layout version 3 carries
-  the currency code, symbol, minor units, the tax scheme name and the seller's
-  tax number. The PDF prints the symbol and the tax breakdown; it never reads
-  settings at render time.
+- **The snapshot freezes all of it.** `InvoicePdfModel` layout version 5 carries
+  the currency code, symbol, minor units, the tax scheme name, the seller's tax
+  number, the logo and whether the issuer is an independent. The PDF prints the
+  symbol and the tax breakdown; it never reads settings at render time.
 - **The invoice date is a calendar date.** `Invoice.InvoiceDate` is a `date`,
   and the tenant's time zone decides which date "today" is. Stored instants
   elsewhere remain UTC.
@@ -181,7 +184,7 @@ historical lines.
 ## Clients the UI uses
 
 - `IInvoiceService` / `InvoiceServiceClient` — CRUD, `FinalizeAsync`, `PreviewAsync`,
-  `GetRecentPageAsync`.
+  `PreviewDraftAsync`, `GetRecentPageAsync`.
 - `IInvoiceSnapshotClient` / `InvoiceSnapshotServiceClient` — link, activity, revoke.
 - Existing pickers: `ICompanyService.ListClientsAsync`, `IContactService`,
   `ITenantRateService`, `IRateTypeService`, `IBankAccountService`, `IInvoiceStatusService`.

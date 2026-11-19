@@ -18,6 +18,13 @@ namespace _0nline.Biller.DL.Reports
         private static readonly string Muted = Colors.Grey.Darken1;
         private static readonly string Rule = Colors.Grey.Lighten2;
 
+        // Configurable presentation colours for the grey areas. Adjust here to theme them.
+        private static readonly string HeaderBackground = Colors.Grey.Lighten3;
+        private static readonly string HeaderText = Colors.Grey.Darken3;
+        private static readonly string BankBackground = Colors.Grey.Lighten4;
+        private static readonly string BankBorder = Colors.Grey.Lighten2;
+        private static readonly string BankText = Colors.Grey.Darken3;
+
         public void Compose(IDocumentContainer container, InvoicePdfModel model)
         {
             container.Page(page =>
@@ -36,7 +43,7 @@ namespace _0nline.Biller.DL.Reports
 
                         column.Item().Row(row =>
                         {
-                            row.RelativeItem().Element(cell => Party(cell, "FROM", model.Issuer));
+                            row.RelativeItem().Element(cell => Party(cell, "FROM", model.Issuer, personFirst: true));
                             row.ConstantItem(12);
                             row.RelativeItem().Element(cell => Party(cell, "BILL TO", model.Customer));
                         });
@@ -46,16 +53,7 @@ namespace _0nline.Biller.DL.Reports
                         column.Item().AlignRight().Width(70, Unit.Millimetre).Element(cell => Totals(cell, model));
 
                         if (model.Bank is not null)
-                            column.Item().Element(cell => Bank(cell, model.Bank));
-
-                        if (!string.IsNullOrWhiteSpace(model.PaymentRef))
-                        {
-                            column.Item().Text(text =>
-                            {
-                                text.Span("Payment reference: ").SemiBold();
-                                text.Span(model.PaymentRef);
-                            });
-                        }
+                            column.Item().Element(cell => Bank(cell, model.Bank, model.PaymentRef));
                     });
 
                 page.Footer().Element(cell => Footer(cell, model));
@@ -68,10 +66,21 @@ namespace _0nline.Biller.DL.Reports
             {
                 row.RelativeItem().Column(column =>
                 {
-                    column.Item().Text(string.IsNullOrWhiteSpace(model.Issuer.Name)
+                    if (model.Issuer.Logo is { Length: > 0 } logo)
+                    {
+                        column.Item().Width(30, Unit.Millimetre).Image(logo).FitWidth();
+                        column.Item().PaddingBottom(4);
+                    }
+
+                    var (issuerPrimary, issuerSecondary) = HeaderIdentity(model.Issuer);
+
+                    column.Item().Text(string.IsNullOrWhiteSpace(issuerPrimary)
                             ? "Invoice"
-                            : model.Issuer.Name)
+                            : issuerPrimary)
                         .SemiBold().FontSize(16);
+
+                    if (!string.IsNullOrWhiteSpace(issuerSecondary))
+                        column.Item().Text(issuerSecondary).FontSize(10).FontColor(Muted);
 
                     if (!string.IsNullOrWhiteSpace(model.Issuer.Registration))
                         column.Item().Text($"Registration {model.Issuer.Registration}")
@@ -95,17 +104,30 @@ namespace _0nline.Biller.DL.Reports
             });
         }
 
-        private static void Party(IContainer container, string heading, InvoicePdfParty party)
+        private static void Party(IContainer container, string heading, InvoicePdfParty party, bool personFirst = false)
         {
             container.Column(column =>
             {
                 column.Item().Text(heading).FontSize(7).SemiBold().FontColor(Muted);
 
-                if (!string.IsNullOrWhiteSpace(party.Name))
-                    column.Item().PaddingTop(2).Text(party.Name).SemiBold();
+                if (personFirst)
+                {
+                    var (primary, secondary) = Identity(party, personFirst: true);
 
-                if (!string.IsNullOrWhiteSpace(party.ContactName))
-                    column.Item().Text(party.ContactName);
+                    if (!string.IsNullOrWhiteSpace(primary))
+                        column.Item().PaddingTop(2).Text(primary).SemiBold();
+
+                    if (!string.IsNullOrWhiteSpace(secondary))
+                        column.Item().Text(secondary);
+                }
+                else
+                {
+                    if (!string.IsNullOrWhiteSpace(party.Name))
+                        column.Item().PaddingTop(2).Text(party.Name).SemiBold();
+
+                    if (!string.IsNullOrWhiteSpace(party.ContactName))
+                        column.Item().Text(party.ContactName);
+                }
 
                 if (!string.IsNullOrWhiteSpace(party.Address))
                     column.Item().Text(party.Address);
@@ -131,6 +153,36 @@ namespace _0nline.Biller.DL.Reports
             });
         }
 
+        /// <summary>
+        /// The issuer's title. A registered company shows only the company name; an
+        /// independent / sole trader leads with the person's name and shows the
+        /// business / trading name or job title underneath.
+        /// </summary>
+        private static (string Primary, string? Secondary) HeaderIdentity(InvoicePdfParty party)
+        {
+            if (party.IsIndependent)
+                return Identity(party, personFirst: true);
+
+            return (string.IsNullOrWhiteSpace(party.Name)
+                ? party.ContactName ?? string.Empty
+                : party.Name, null);
+        }
+
+        /// <summary>
+        /// Chooses which name leads. With <paramref name="personFirst"/>, the person's
+        /// name leads and the business / trading name or job title follows.
+        /// </summary>
+        private static (string Primary, string? Secondary) Identity(InvoicePdfParty party, bool personFirst)
+        {
+            if (personFirst && !string.IsNullOrWhiteSpace(party.ContactName))
+                return (party.ContactName, string.IsNullOrWhiteSpace(party.Name) ? null : party.Name);
+
+            if (!string.IsNullOrWhiteSpace(party.Name))
+                return (party.Name, string.IsNullOrWhiteSpace(party.ContactName) ? null : party.ContactName);
+
+            return (party.ContactName ?? string.Empty, null);
+        }
+
         private static void Lines(IContainer container, InvoicePdfModel model)
         {
             bool showTax = ShowsTax(model);
@@ -149,12 +201,12 @@ namespace _0nline.Biller.DL.Reports
 
                 table.Header(header =>
                 {
-                    header.Cell().Element(HeaderCell).Text("Description");
+                    header.Cell().Element(HeaderCellFirst).Text("Description");
                     header.Cell().Element(HeaderCell).AlignRight().Text("Qty");
                     header.Cell().Element(HeaderCell).AlignRight().Text(showTax ? "Excl" : "Rate");
                     if (showTax)
                         header.Cell().Element(HeaderCell).AlignRight().Text("Tax");
-                    header.Cell().Element(HeaderCell).AlignRight().Text("Amount");
+                    header.Cell().Element(HeaderCellLast).AlignRight().Text("Amount");
                 });
 
                 foreach (var line in model.Lines)
@@ -180,16 +232,13 @@ namespace _0nline.Biller.DL.Reports
         {
             container.Column(column =>
             {
-                if (ShowsTax(model))
+                column.Item().Row(row =>
                 {
-                    column.Item().Row(row =>
-                    {
-                        row.RelativeItem()
-                            .Text(model.TaxSchemeName is { } scheme ? $"Tax ({scheme})" : "Tax")
-                            .FontColor(Muted);
-                        row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(Money(model.TotalTax, model));
-                    });
-                }
+                    row.RelativeItem()
+                        .Text(model.TaxSchemeName is { } scheme ? $"Tax ({scheme})" : "Tax (VAT)")
+                        .FontColor(Muted);
+                    row.ConstantItem(32, Unit.Millimetre).AlignRight().Text(Money(model.TotalTax, model));
+                });
 
                 column.Item().PaddingTop(4).BorderTop(1).BorderColor(Rule).PaddingTop(6).Row(row =>
                 {
@@ -203,22 +252,31 @@ namespace _0nline.Biller.DL.Reports
         private static bool ShowsTax(InvoicePdfModel model)
             => !string.IsNullOrWhiteSpace(model.TaxSchemeName);
 
-        private static void Bank(IContainer container, InvoicePdfBank bank)
+        private static void Bank(IContainer container, InvoicePdfBank bank, string? paymentRef)
         {
-            container.Border(0.5f).BorderColor(Rule).Background(Colors.Grey.Lighten4).Padding(10).Column(column =>
+            container.Border(0.5f).BorderColor(BankBorder).Background(BankBackground).CornerRadius(8).Padding(10).Column(column =>
             {
-                column.Item().Text("Payment details").SemiBold();
+                column.Item().Text("Payment details").SemiBold().FontColor(BankText);
 
-                column.Item().PaddingTop(4).Text($"Account holder: {bank.AccountName}");
-                column.Item().Text($"Bank: {bank.BankName}");
-                column.Item().Text($"Account number: {bank.AccountNumber}");
+                column.Item().PaddingTop(4).Text($"Account holder: {bank.AccountName}").FontColor(BankText);
+                column.Item().Text($"Bank: {bank.BankName}").FontColor(BankText);
+                column.Item().Text($"Account number: {bank.AccountNumber}").FontColor(BankText);
 
                 var branch = Join(bank.BranchCode, bank.AccountType);
                 if (!string.IsNullOrWhiteSpace(branch))
-                    column.Item().Text(branch);
+                    column.Item().Text(branch).FontColor(BankText);
 
                 if (!string.IsNullOrWhiteSpace(bank.SwiftCode))
-                    column.Item().Text($"SWIFT: {bank.SwiftCode}");
+                    column.Item().Text($"SWIFT: {bank.SwiftCode}").FontColor(BankText);
+
+                if (!string.IsNullOrWhiteSpace(paymentRef))
+                {
+                    column.Item().PaddingTop(4).Text(text =>
+                    {
+                        text.Span("Payment reference: ").SemiBold().FontColor(BankText);
+                        text.Span(paymentRef).FontColor(BankText);
+                    });
+                }
             });
         }
 
@@ -254,10 +312,28 @@ namespace _0nline.Biller.DL.Reports
 
         private static IContainer HeaderCell(IContainer container)
             => container
-                .Background(Colors.Grey.Lighten3)
+                .Background(HeaderBackground)
                 .PaddingVertical(4)
                 .PaddingHorizontal(3)
-                .DefaultTextStyle(style => style.SemiBold());
+                .DefaultTextStyle(style => style.SemiBold().FontColor(HeaderText));
+
+        private static IContainer HeaderCellFirst(IContainer container)
+            => container
+                .Background(HeaderBackground)
+                .CornerRadiusTopLeft(4)
+                .CornerRadiusBottomLeft(4)
+                .PaddingVertical(4)
+                .PaddingHorizontal(3)
+                .DefaultTextStyle(style => style.SemiBold().FontColor(HeaderText));
+
+        private static IContainer HeaderCellLast(IContainer container)
+            => container
+                .Background(HeaderBackground)
+                .CornerRadiusTopRight(4)
+                .CornerRadiusBottomRight(4)
+                .PaddingVertical(4)
+                .PaddingHorizontal(3)
+                .DefaultTextStyle(style => style.SemiBold().FontColor(HeaderText));
 
         private static IContainer BodyCell(IContainer container)
             => container

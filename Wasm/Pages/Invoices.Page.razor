@@ -10,7 +10,13 @@
 
 <AuthorizeView>
     <Authorized>
-        <MudText Typo="Typo.h3" Class="py-2">Invoices</MudText>
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+            <MudText Typo="Typo.h3" Class="py-2">Invoices</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Add" OnClick="CreateNew">
+                New invoice
+            </MudButton>
+        </MudStack>
 
         <MudPaper Class="py-3 px-3">
             @if (_loading)
@@ -28,16 +34,6 @@
             }
             else
             {
-                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
-                    <MudText Typo="Typo.body2">
-                        The invoices you have issued, newest first. Open one to edit its draft or view its preview.
-                    </MudText>
-                    <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                               StartIcon="@Icons.Material.Filled.Add" OnClick="CreateNew">
-                        New invoice
-                    </MudButton>
-                </MudStack>
-
                 @if (_totalCount == 0)
                 {
                     <MudText Typo="Typo.body2">
@@ -60,7 +56,7 @@
 
                                 <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
 
-                                    <MudText Typo="Typo.body2">@FormatDate(invoice.InvoiceDate)</MudText>
+                                    <MudText Typo="Typo.body2" Style="text-align:left;">@FormatDate(invoice.InvoiceDate)</MudText>
 
                                     <InvoiceStatusChip Status="(InvoiceStatus)invoice.InvoiceStatusID" />
 
@@ -84,36 +80,8 @@
                         }
                     </MudPaper>
 
-                    @if (_totalPages > 0)
-                    {
-                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-3">
-                            <MudItem>
-                                <MudText Typo="Typo.body2">@PageSummary()</MudText>
-                            </MudItem>
-                            <MudItem>
-                                <MudPagination Count="_totalPages"
-                                               Selected="_page"
-                                               SelectedChanged="OnPageChanged"
-                                               ShowFirstButton="@(_totalPages > 2)"
-                                               ShowLastButton="@(_totalPages > 2)"
-                                               Size="Size.Small"
-                                               Variant="Variant.Filled"
-                                               Color="Color.Primary" />
-                            </MudItem>
-                            <MudItem >
-                                <MudStack Row="true" AlignItems="AlignItems.Center">
-                                    <MudText Typo="Typo.body2" >Page Size:</MudText>
-                                <MudSelect T="int" Value="_pageSize" ValueChanged="ChangePageSizeAsync" Margin="Margin.Dense"
-                                           Dense="true" Variant="Variant.Text" Style="max-width: 120px;">
-                                    @foreach (var size in PageSizeOptions)
-                                    {
-                                        <MudSelectItem T="int" Value="size">@($"{size} items")</MudSelectItem>
-                                    }
-                                </MudSelect>
-                                </MudStack>
-                            </MudItem>
-                        </MudStack>
-                    }
+                    <Pager TotalCount="_totalCount" TotalPages="_totalPages" Page="_page" PageSize="_pageSize"
+                           PageSizeOptions="PageSizeOptions" PageChanged="OnPageChanged" PageSizeChanged="ChangePageSizeAsync" />
                 }
             }
         </MudPaper>

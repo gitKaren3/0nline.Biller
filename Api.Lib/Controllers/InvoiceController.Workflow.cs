@@ -1,3 +1,4 @@
+using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Shared.Contract;
 using Microsoft.AspNetCore.Mvc;
 
@@ -39,6 +40,22 @@ namespace _0nline.Biller.Api.Lib
 
             if (!result.Successful || result.Value is null)
                 return NotFound(result);
+
+            Response.Headers.CacheControl = "no-store";
+            return File(result.Value, "application/pdf");
+        }
+
+        /// <summary>
+        /// Renders the editor's in-memory invoice without saving it. The save remains
+        /// the only thing that allocates a number or writes a row.
+        /// </summary>
+        [HttpPost("preview.pdf")]
+        public async Task<IActionResult> PreviewDraft([FromBody] Invoice invoice)
+        {
+            var result = await BaseService.PreviewDraftAsync(invoice);
+
+            if (!result.Successful || result.Value is null)
+                return BadRequest(result);
 
             Response.Headers.CacheControl = "no-store";
             return File(result.Value, "application/pdf");

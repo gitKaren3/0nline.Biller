@@ -19,7 +19,8 @@ namespace _0nline.Biller.DL.Reports
             Company? customer,
             Contact? customerContact,
             BankAccount? bank,
-            IReadOnlyDictionary<short, string> rateTypes)
+            IReadOnlyDictionary<short, string> rateTypes,
+            byte[]? issuerLogo = null)
         {
             ArgumentNullException.ThrowIfNull(invoice);
             ArgumentNullException.ThrowIfNull(rateTypes);
@@ -54,7 +55,7 @@ namespace _0nline.Biller.DL.Reports
                 CurrencySymbol = currency.Symbol,
                 CurrencyMinorUnits = invoice.CurrencyMinorUnits ?? currency.MinorUnits,
                 TaxSchemeName = SchemeName(issuer?.theTaxScheme),
-                Issuer = ToParty(issuer, issuerContact),
+                Issuer = ToParty(issuer, issuerContact, issuerLogo),
                 Customer = ToParty(customer, customerContact),
                 Bank = ToBank(bank),
                 Lines = lines,
@@ -63,7 +64,7 @@ namespace _0nline.Biller.DL.Reports
             };
         }
 
-        private static InvoicePdfParty ToParty(Company? company, Contact? contact)
+        private static InvoicePdfParty ToParty(Company? company, Contact? contact, byte[]? logo = null)
         {
             if (company is null)
             {
@@ -77,6 +78,8 @@ namespace _0nline.Biller.DL.Reports
 
             return new InvoicePdfParty
             {
+                Logo = logo,
+                IsIndependent = company.IsIndependent,
                 Name = company.Name ?? string.Empty,
                 Registration = company.Registration,
                 TaxNumber = company.TaxNumber,

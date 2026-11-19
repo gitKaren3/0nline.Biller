@@ -60,6 +60,9 @@ namespace _0nline.Biller.Wasm.Client.DL
         public Task<Result<byte[]>> PreviewAsync(int id)
             => GetBytesAsync($"{id}/preview.pdf");
 
+        public Task<Result<byte[]>> PreviewDraftAsync(Invoice invoice)
+            => PostBytesAsync("preview.pdf", invoice);
+
         public Task<Result<InvoiceNumberPreview>> PeekInvoiceNumberAsync()
             => GetAndHandleAsync<InvoiceNumberPreview>("next-number");
 

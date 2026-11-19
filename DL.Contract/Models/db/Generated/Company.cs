@@ -66,6 +66,9 @@ namespace _0nline.Biller.DL.Contract.Models.db
         public bool? Active { get; set; }
 
         [Editable(true)]
+        public bool IsIndependent { get; set; }
+
+        [Editable(true)]
         [StringLength(2, ErrorMessage = "Max 2 characters")]
         public string? CountryCode { get; set; }
 

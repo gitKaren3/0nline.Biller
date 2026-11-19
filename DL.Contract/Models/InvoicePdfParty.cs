@@ -27,5 +27,14 @@ namespace _0nline.Biller.DL.Contract.Models
         public string? AddressCode { get; init; }
 
         public string? AddressCountry { get; init; }
+
+        /// <summary>The issuer's logo image bytes, frozen into the snapshot.</summary>
+        public byte[]? Logo { get; init; }
+
+        /// <summary>
+        /// Whether this party is an independent / sole trader rather than a registered
+        /// company. It decides which name leads on the invoice.
+        /// </summary>
+        public bool IsIndependent { get; init; }
     }
 }

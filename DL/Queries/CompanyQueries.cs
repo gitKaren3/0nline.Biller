@@ -45,7 +45,7 @@ namespace _0nline.Biller.DL.Queries
                        c.{Quoted("BillingContactID")}, c.{Quoted("Registration")},
                        c.{Quoted("Address")}, c.{Quoted("AddressCity")}, c.{Quoted("AddressCode")},
                        c.{Quoted("AddressCountry")}, c.{Quoted("Phone")}, c.{Quoted("LogoImageID")},
-                       c.{Quoted("Active")}, c.{Quoted("CountryCode")}, c.{Quoted("TaxNumber")},
+                       c.{Quoted("Active")}, c.{Quoted("IsIndependent")}, c.{Quoted("CountryCode")}, c.{Quoted("TaxNumber")},
                        c.{Quoted("TaxSchemeID")},
                        bc.{Quoted("ID")} AS {Quoted("ContactID")},
                        bc.{Quoted("TenantID")} AS {Quoted("ContactTenantID")},
@@ -81,6 +81,7 @@ namespace _0nline.Biller.DL.Queries
                 Phone = row.Phone,
                 LogoImageID = row.LogoImageID,
                 Active = row.Active,
+                IsIndependent = row.IsIndependent,
                 CountryCode = row.CountryCode,
                 TaxNumber = row.TaxNumber,
                 TaxSchemeID = row.TaxSchemeID,
@@ -117,6 +118,7 @@ namespace _0nline.Biller.DL.Queries
             public long? Phone { get; set; }
             public int? LogoImageID { get; set; }
             public bool? Active { get; set; }
+            public bool IsIndependent { get; set; }
             public string? CountryCode { get; set; }
             public string? TaxNumber { get; set; }
             public short? TaxSchemeID { get; set; }

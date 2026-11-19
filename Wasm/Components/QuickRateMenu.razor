@@ -4,8 +4,9 @@
    type and ranked with the most specific, most recent rate first. "New..." is
    deliberately first: capturing a missing rate is part of choosing one. *@
 
-<MudMenu Label="Quick Rate" Variant="Variant.Text" Size="Size.Small"
-         EndIcon="@Icons.Material.Filled.ArrowDropDown" Color="Color.Primary">
+<MudTooltip Text="Quick rate">
+    <MudMenu Icon="@Icons.Material.Filled.Bolt" Variant="Variant.Outlined" Dense="true" Size="Size.Small"
+             Color="Color.Secondary" AriaLabel="Quick rate"  >
     <MudMenuItem OnClick="@(() => OnNew.InvokeAsync(null))">
         <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
             <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
@@ -53,6 +54,7 @@
         }
     }
 </MudMenu>
+</MudTooltip>
 
 @code {
     [Parameter, EditorRequired] public IEnumerable<TenantRate> Rates { get; set; } = Array.Empty<TenantRate>();

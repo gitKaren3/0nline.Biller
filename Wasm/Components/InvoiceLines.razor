@@ -13,24 +13,24 @@
             <col style="width: 8%;" />
             <col style="width: 10%;" />
         }
-        <col style="width: 80px;" />
-        <col style="width: 10%;" />
+        <col style="width: 120px;" />
+        <col style="width: 75px;" />
         @if (IsDraft)
         {
-            <col style="width: 40px;" />
+            <col style="width: 20px;" />
         }
     </ColGroup>
     <HeaderContent>
-        <MudTh Style="padding-left:10px;">Description</MudTh>
+        <MudTh>Description</MudTh>
         <MudTh>@(ShowTax ? "Rate (Excl)" : "Rate")</MudTh>
-        <MudTh>Rate type</MudTh>
+        <MudTh Style="padding-right:30px;">Rate type</MudTh>
         @if (ShowTax)
         {
             <MudTh Style="text-align:right">Tax</MudTh>
             <MudTh Style="text-align:right">Incl</MudTh>
         }
-        <MudTh Style="text-align:right;padding-right:10px;">Qty</MudTh>
-        <MudTh Style="text-align:right;padding-right:0px;">Total</MudTh>
+        <MudTh Style="text-align:right;padding-right:30px;">Qty</MudTh>
+        <MudTh Style="text-align:right;padding-right:30px;">Total</MudTh>
         @if (IsDraft)
         {
             <MudTh></MudTh>
@@ -135,7 +135,7 @@
             </MudTd>
         }
 
-        <MudTd DataLabel="Qty" Style="text-align:right;padding-right:0px;padding-left:5px;">
+        <MudTd DataLabel="Qty" Style="text-align:right;">
             @if (IsDraft)
             {
                 <MudNumericField T="decimal?" Min="@(0.01m)" Step="@(0.25m)"
@@ -149,13 +149,13 @@
             }
         </MudTd>
 
-        <MudTd DataLabel="Total" Style="text-align:right;padding-right:0px;">
+        <MudTd DataLabel="Total" Style="text-align:right;">
             <MudText>@Money(LineAmount(line))</MudText>
         </MudTd>
 
         @if (IsDraft)
         {
-            <MudTd Style="text-align:right;padding-right:2px;">
+            <MudTd Style="text-align:right;padding-left:0px;padding-right:2px;">
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
                                aria-label="Remove line" OnClick="@(() => RemoveLine(line))" />
             </MudTd>

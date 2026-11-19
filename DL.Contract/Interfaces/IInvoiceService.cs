@@ -38,6 +38,13 @@ namespace _0nline.Biller.DL.Contract.Interfaces
         Task<Result<byte[]>> PreviewAsync(int id);
 
         /// <summary>
+        /// Renders the invoice supplied by the editor without saving it. This lets a
+        /// draft be previewed with its in-memory edits; the save still owns numbering,
+        /// validation and persistence.
+        /// </summary>
+        Task<Result<byte[]>> PreviewDraftAsync(Invoice invoice);
+
+        /// <summary>
         /// The number the next invoice would draw, without consuming it. The editor
         /// shows it before saving; the create still allocates and checks.
         /// </summary>

@@ -1,0 +1,61 @@
+@* Reusable bottom pager: summary, page navigation and page size. *@
+
+@if (TotalPages > 0)
+{
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-3">
+        <MudItem>
+            <MudText Typo="Typo.body2">@PageSummary</MudText>
+        </MudItem>
+        <MudItem>
+            <MudPagination Count="TotalPages"
+                           Selected="Page"
+                           SelectedChanged="OnPageChanged"
+                           ShowFirstButton="@(TotalPages > 2)"
+                           ShowLastButton="@(TotalPages > 2)"
+                           Size="Size.Small"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary" />
+        </MudItem>
+        <MudItem>
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.body2">Page Size:</MudText>
+                <MudSelect T="int" Value="PageSize" ValueChanged="OnPageSizeChanged" Margin="Margin.Dense"
+                           Dense="true" Variant="Variant.Text" Style="max-width: 120px;">
+                    @foreach (var size in PageSizeOptions)
+                    {
+                        <MudSelectItem T="int" Value="size">@($"{size} items")</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudStack>
+        </MudItem>
+    </MudStack>
+}
+
+@code {
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public int TotalPages { get; set; }
+    [Parameter] public int Page { get; set; }
+    [Parameter] public int PageSize { get; set; }
+    [Parameter] public int[] PageSizeOptions { get; set; } = new[] { 5, 10, 25, 50 };
+
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
+
+    private string PageSummary
+    {
+        get
+        {
+            if (TotalCount == 0)
+                return string.Empty;
+
+            var first = (Page - 1) * PageSize + 1;
+            var last = Math.Min(Page * PageSize, TotalCount);
+            if (first == last)
+                return $"Showing {first} of {TotalCount}";
+            return $"Showing {first}-{last} of {TotalCount}";
+        }
+    }
+
+    private Task OnPageChanged(int page) => PageChanged.InvokeAsync(page);
+    private Task OnPageSizeChanged(int pageSize) => PageSizeChanged.InvokeAsync(pageSize);
+}

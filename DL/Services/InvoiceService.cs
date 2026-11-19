@@ -160,6 +160,32 @@ namespace _0nline.Biller.DL.Services
         }
 
         /// <summary>
+        /// Preview the editor's in-memory invoice. Nothing is written: the line tax
+        /// fields are filled in on this request's copy so the document matches what
+        /// the save would produce, without claiming a number or persisting a row.
+        /// </summary>
+        public async Task<Result<byte[]>> PreviewDraftAsync(Invoice invoice)
+        {
+            if (invoice is null)
+                return Result<byte[]>.None();
+
+            try
+            {
+                var defaults = await ResolveDefaultsAsync(invoice);
+                if (defaults.Error is null)
+                    invoice.InvoiceLines = PrepareLines(invoice, defaults.Value);
+                else
+                    invoice.InvoiceLines ??= new List<InvoiceLine>();
+
+                return await _pdfService.RenderAsync(invoice);
+            }
+            catch (Exception ex)
+            {
+                return Result<byte[]>.Failure(ErrorCode.ServerError, ex.Message);
+            }
+        }
+
+        /// <summary>
         /// The number the next invoice will draw, formatted, without consuming it. The
         /// counter can lag behind what has been issued (a reset, or numbers typed by
         /// hand), so the peek skips numbers already on an invoice instead of handing the

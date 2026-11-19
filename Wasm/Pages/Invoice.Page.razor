@@ -60,7 +60,7 @@
             <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3 flex-wrap">
                 <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="ClosePreview">Back</MudButton>
 
-                @if (IsDraft)
+                @if (IsDraft && _invoice.ID > 0)
                 {
                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                StartIcon="@Icons.Material.Filled.Lock"
@@ -76,6 +76,10 @@
         }
         else
         {
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3">
+                <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="Back">Back</MudButton>
+            </MudStack>
+
             <MudPaper Class="py-3 px-3">
                 <MudForm @ref="_form">
 
@@ -158,7 +162,7 @@
                             <MudSwitch T="bool" @bind-Value="_showTax" Label="Show tax"
                                        Color="Color.Primary" Size="Size.Small" />
                             <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                Tax is calculated at 14%.
+                                Tax is calculated at @(_taxRate.ToString("0.##"))%.
                             </MudText>
                         </MudStack>
                     }
@@ -184,8 +188,6 @@
                         </MudButton>
                     }
 
-                    <MudDivider Class="my-4" />
-
                     <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
                               Class="flex-wrap">
                         <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="max-width: 420px;">
@@ -201,7 +203,6 @@
 
                 <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-4">
                     <MudStack Row="true" Spacing="1">
-                        <MudButton OnClick="Back">Back</MudButton>
                         @if (IsDraft && _invoice.ID > 0)
                         {
                             <MudButton Color="Color.Error" OnClick="DeleteAsync" Disabled="_saving">Delete</MudButton>
@@ -227,7 +228,7 @@
                         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                    OnClick="PreviewAsync" Disabled="_saving || _previewing"
                                    StartIcon="@Icons.Material.Filled.PictureAsPdf">
-                            @(_previewing ? "Generating..." : (IsDraft ? "Save & preview" : "Preview"))
+                            @(_previewing ? "Generating..." : "Preview")
                         </MudButton>
                     </MudStack>
                 </MudStack>
@@ -833,23 +834,7 @@
         if (_previewing)
             return;
 
-        // The editor must save before previewing: preview.pdf renders the saved invoice.
-        if (IsDraft)
-        {
-            if (!await SaveAndPreviewAsync())
-                return;
-        }
-
-        if (_invoice.ID <= 0)
-            return;
-
         await LoadPreviewAsync();
-    }
-
-    private async Task<bool> SaveAndPreviewAsync()
-    {
-        await SaveAsync();
-        return _invoice.ID > 0;
     }
 
     private async Task LoadPreviewAsync()
@@ -858,7 +843,11 @@
 
         try
         {
-            var result = await InvoiceService.PreviewAsync(_invoice.ID);
+            // A draft is rendered from the in-memory model, so the editor does not
+            // have to save first. A finalized invoice renders its saved row.
+            var result = IsDraft
+                ? await InvoiceService.PreviewDraftAsync(_invoice)
+                : await InvoiceService.PreviewAsync(_invoice.ID);
             if (result.Successful && result.Value is byte[] bytes && bytes.Length > 0)
             {
                 _previewUrl = $"data:application/pdf;base64,{Convert.ToBase64String(bytes)}";
