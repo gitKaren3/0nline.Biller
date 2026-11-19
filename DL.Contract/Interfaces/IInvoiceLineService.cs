@@ -10,7 +10,7 @@ namespace _0nline.Biller.DL.Contract.Interfaces
     /// </summary>
     /// <remarks>
     /// Inherits <see cref="IDLChildService{TChild,TParent}"/> rather than
-    /// <c>IDLBaseService</c>, <c>IDLReadableService</c> or <c>IDLWritableService</c>, so
+    /// <c>IDLBasicService</c>, <c>IDLReadableService</c> or <c>IDLWritableService</c>, so
     /// the controller and HTTP generators recognise it and emit no top-level endpoint.
     /// Do not expose this service by its own key.
     /// </remarks>

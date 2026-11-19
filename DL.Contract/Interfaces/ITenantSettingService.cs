@@ -9,7 +9,7 @@ namespace _0nline.Biller.DL.Contract.Interfaces
     /// invoice lines start from. There is exactly one row per tenant, so the
     /// surface is a read/save pair rather than generic CRUD.
     /// </summary>
-    public interface ITenantSettingService : IDLBaseService<TenantSetting>
+    public interface ITenantSettingService : IDLBasicService<TenantSetting>
     {
         /// <summary>
         /// Returns the caller's settings, creating the default row first when the

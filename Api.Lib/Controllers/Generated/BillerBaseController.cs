@@ -8,9 +8,9 @@ namespace _0nline.Biller.Api.Lib
     [Route("api/biller/[controller]")]
     public abstract class BillerBaseController<T, TKey> : ControllerBase where T : class
     {
-        protected virtual IDLBaseService<T> BaseService { get; }
+        protected virtual IDLBasicService<T> BaseService { get; }
 
-        public BillerBaseController(IDLBaseService<T> baseService) {
+        public BillerBaseController(IDLBasicService<T> baseService) {
             BaseService = baseService;
         }
 

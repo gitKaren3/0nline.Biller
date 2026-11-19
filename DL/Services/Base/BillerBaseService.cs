@@ -11,7 +11,7 @@ using Dapper;
 
 namespace _0nline.Biller.DL.Services.Base
 {
-    public abstract class BillerBaseService<T> : DbService<T, int>, IDLBaseService<T> where T : class, IDbEntity
+    public abstract class BillerBaseService<T> : DbService<T, int>, IDLBasicService<T> where T : class, IDbEntity
     {
         //constructor
         protected BillerBaseService(IDbContextProvider<BillerDbConfig> ctx, ISqlQueryProvider<T> queryStringService, ITenantContext tenancyContext)
@@ -39,8 +39,7 @@ namespace _0nline.Biller.DL.Services.Base
             return Result<T[]>.Success(list);
         }
 
-        // TODO make this protected and only surfaced by IDLReadableService's
-        public Task<Result<PageOf<T>>> GetPageAsync(int page, int pageSize)
+        protected Task<Result<PageOf<T>>> GetPageAsync(int page, int pageSize)
             => PageAsync(new PageRequest(page, pageSize));
 
         /// <summary>

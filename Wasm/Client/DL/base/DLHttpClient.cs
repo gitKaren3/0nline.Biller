@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace _0nline.Biller.Wasm.Client.DL
 {
-    public abstract class DLHttpClient<T> : DLHttpClient, IDLBaseService<T> where T : class
+    public abstract class DLHttpClient<T> : DLHttpClient, IDLBasicService<T> where T : class
     {
         protected DLHttpClient(HttpClient http, IOptions<DLClientOptions> options, string controller)
             : base(http, options, controller)

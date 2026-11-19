@@ -5,7 +5,7 @@ using _0nline.Biller.DL.Contract.Models.db;
 
 namespace _0nline.Biller.DL.Contract.Interfaces
 {
-    public interface ICompanyService : IDLBaseService<Company>, IDLReadableService<Company>, IDLWritableService<Company>
+    public interface ICompanyService : IDLReadableService<Company>, IDLWritableService<Company>
     {
         /// <summary>
         /// The tenant's clients: every company it owns except its own profile.

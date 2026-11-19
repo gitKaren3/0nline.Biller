@@ -33,6 +33,9 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<Company[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
+        public new Task<Result<PageOf<Company>>> GetPageAsync(int page, int pageSize)
+            => base.GetPageAsync(page, pageSize);
+
         public new async Task<Result<Company>> CreateAsync(Company entity)
         {
             PrepareTaxIdentity(entity);

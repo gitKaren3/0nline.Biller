@@ -5,7 +5,7 @@ using _0nline.Biller.DL.Contract.Models.db;
 
 namespace _0nline.Biller.DL.Contract.Interfaces
 {
-    public interface IInvoiceService : IDLBaseService<Invoice>, IDLReadableService<Invoice>, IDLWritableService<Invoice>
+    public interface IInvoiceService : IDLReadableService<Invoice>, IDLWritableService<Invoice>
     {
         /// <summary>
         /// The invoice list, newest first (ID descending), one page at a time.

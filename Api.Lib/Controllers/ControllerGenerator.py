@@ -28,9 +28,9 @@ namespace {target_namespace}
     [Route("api/{sub_route}/[controller]")]
     public abstract class {App}BaseController<T, TKey> : ControllerBase where T : class
     {{
-        protected virtual IDLBaseService<T> BaseService {{ get; }}
+        protected virtual IDLBasicService<T> BaseService {{ get; }}
 
-        public {App}BaseController(IDLBaseService<T> baseService) {{
+        public {App}BaseController(IDLBasicService<T> baseService) {{
             BaseService = baseService;
         }}
 

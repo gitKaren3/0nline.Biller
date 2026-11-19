@@ -29,6 +29,9 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<BankAccount[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
+        public new Task<Result<PageOf<BankAccount>>> GetPageAsync(int page, int pageSize)
+            => base.GetPageAsync(page, pageSize);
+
         public new Task<Result<BankAccount>> CreateAsync(BankAccount entity) => CreateAccountAsync(entity);
         public new Task<Result<BankAccount>> UpdateAsync(BankAccount entity) => UpdateAccountAsync(entity);
 

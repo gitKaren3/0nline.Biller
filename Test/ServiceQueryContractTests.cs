@@ -12,7 +12,7 @@ namespace _0nline.Biller.Test;
 /// Where the app contract's generic existence check is answered.
 /// </summary>
 /// <remarks>
-/// <see cref="IDLBaseService{T}"/> carries a fallback so a WASM client compiles
+/// <see cref="IDLBasicService{T}"/> carries a fallback so a WASM client compiles
 /// without a new endpoint. The server must not use it: the fallback reads the row,
 /// with its navigation properties and augmentation, which is exactly the cost a
 /// validation check is trying to avoid. A missing server implementation would not be
@@ -24,12 +24,12 @@ public class ServiceQueryContractTests
     [Fact]
     public void Exists_is_answered_by_the_app_base_not_the_interface_fallback()
     {
-        var map = typeof(ContactService).GetInterfaceMap(typeof(IDLBaseService<Contact>));
+        var map = typeof(ContactService).GetInterfaceMap(typeof(IDLBasicService<Contact>));
         var index = Array.FindIndex(
             map.InterfaceMethods,
-            method => method.Name == nameof(IDLBaseService<Contact>.ExistsAsync));
+            method => method.Name == nameof(IDLBasicService<Contact>.ExistsAsync));
 
-        Assert.True(index >= 0, "IDLBaseService has no ExistsAsync.");
+        Assert.True(index >= 0, "IDLBasicService has no ExistsAsync.");
         Assert.Equal(typeof(BillerBaseService<Contact>), map.TargetMethods[index].DeclaringType);
     }
 }

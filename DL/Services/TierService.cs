@@ -18,6 +18,9 @@ namespace _0nline.Biller.DL.Services
 
         public new Task<Result<Tier[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
+
+        public new Task<Result<PageOf<Tier>>> GetPageAsync(int page, int pageSize)
+            => base.GetPageAsync(page, pageSize);
      
     }
 }

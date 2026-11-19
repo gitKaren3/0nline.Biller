@@ -26,6 +26,9 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<TenantRate[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
+        public new Task<Result<PageOf<TenantRate>>> GetPageAsync(int page, int pageSize)
+            => base.GetPageAsync(page, pageSize);
+
         /// <summary>
         /// The captured rates among <paramref name="ids"/> that belong to this tenant,
         /// read in one statement. The tenant predicate comes from the store, so an id

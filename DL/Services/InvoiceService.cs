@@ -64,6 +64,9 @@ namespace _0nline.Biller.DL.Services
         public new Task<Result<Invoice[]>> GetAllAsync() => base.GetAllAsync();
         public new Task<Result<IReadOnlyDictionary<int, string>>> GetLookupAsync() => base.GetLookupAsync();
 
+        public new Task<Result<PageOf<Invoice>>> GetPageAsync(int page, int pageSize)
+            => base.GetPageAsync(page, pageSize);
+
         public Task<Result<PageOf<Invoice>>> GetRecentPageAsync(int page, int pageSize)
             => PageAsync(
                 new PageRequest(page, pageSize),
