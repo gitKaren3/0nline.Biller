@@ -1,14 +1,14 @@
-using _0nline.Biller.DL.Contract.Enums;
+﻿using _0nline.Biller.DL.Contract.Enums;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Biller.DL.Reports;
+using _0nline.Biller.DL.Queries;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Interfaces;
-using Dapper;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -33,6 +33,7 @@ namespace _0nline.Biller.DL.Services
         private readonly IInvoiceService _invoices;
         private readonly IInvoicePdfService _pdfService;
         private readonly ILogger<InvoiceSnapshotService> _logger;
+        private readonly IInvoiceSnapshotQueries _queries;
 
         public InvoiceSnapshotService(
             IDbContextProvider<BillerDbConfig> ctx,
@@ -40,12 +41,14 @@ namespace _0nline.Biller.DL.Services
             ITenantContext tenancyContext,
             IInvoiceService invoices,
             IInvoicePdfService pdfService,
-            ILogger<InvoiceSnapshotService> logger)
+            ILogger<InvoiceSnapshotService> logger,
+            IInvoiceSnapshotQueries queries)
             : base(ctx, queryService, tenancyContext)
         {
             _invoices = invoices;
             _pdfService = pdfService;
             _logger = logger;
+            _queries = queries;
         }
 
         public async Task<Result<InvoiceSnapshot>> CreateForInvoiceAsync(int invoiceId, bool regenerate = false)
@@ -98,14 +101,7 @@ namespace _0nline.Biller.DL.Services
             if (token == Guid.Empty)
                 return Result<InvoiceSnapshot?>.None();
 
-            using var conn = Connection;
-
-            // Deliberately unscoped: the token is the capability, and an anonymous
-            // caller has no tenant. Never add a by-id variant of this read.
-            var row = await conn.QueryFirstOrDefaultAsync<InvoiceSnapshot>(
-                @"SELECT * FROM ""InvoiceSnapshot""
-                  WHERE ""Token"" = @Token AND ""RevokedAt"" IS NULL",
-                new { Token = token });
+            var row = await _queries.GetByTokenAsync(token);
 
             return row is null
                 ? Result<InvoiceSnapshot?>.None()
@@ -147,23 +143,14 @@ namespace _0nline.Biller.DL.Services
 
             try
             {
-                using var conn = Connection;
+                // Telemetry is best effort; a failure here must not deny the document.
+                var accessedAt = DateTime.UtcNow;
 
-                // All SET expressions see the old row, so the CASE still tests the
-                // previous LastAccessedAt while the same statement refreshes it.
-                await conn.ExecuteAsync(new CommandDefinition(
-                    @"UPDATE ""InvoiceSnapshot""
-                         SET ""FirstAccessedAt"" = COALESCE(""FirstAccessedAt"", now()),
-                             ""LastAccessedAt""  = now(),
-                             ""AccessCount""     = CASE
-                                 WHEN ""LastAccessedAt"" IS NULL
-                                   OR ""LastAccessedAt"" < now() - @Window
-                                 THEN COALESCE(""AccessCount"", 0) + 1
-                                 ELSE COALESCE(""AccessCount"", 0)
-                             END
-                       WHERE ""Token"" = @Token AND ""RevokedAt"" IS NULL",
-                    new { Token = token, Window = AccessWindow },
-                    cancellationToken: cancellationToken));
+                await _queries.RecordAccessAsync(
+                    token,
+                    accessedAt,
+                    accessedAt - AccessWindow,
+                    cancellationToken);
             }
             catch (Exception ex)
             {
@@ -212,20 +199,7 @@ namespace _0nline.Biller.DL.Services
             if (snapshotId <= 0)
                 return Result<InvoiceSnapshot?>.None();
 
-            using var conn = Connection;
-
-            // There is no TenantID on the child row, so ownership is proved through
-            // the invoice. A snapshot id from another tenant updates nothing.
-            var row = await conn.QueryFirstOrDefaultAsync<InvoiceSnapshot>(
-                @"UPDATE ""InvoiceSnapshot"" s
-                     SET ""RevokedAt"" = now()
-                   WHERE s.""ID"" = @Id
-                     AND s.""RevokedAt"" IS NULL
-                     AND EXISTS (SELECT 1 FROM ""Invoice"" i
-                                  WHERE i.""ID"" = s.""InvoiceID""
-                                    AND i.""TenantID"" = @TenantId)
-                  RETURNING s.*",
-                new { Id = snapshotId, TenantId = RequireTenantId() });
+            var row = await _queries.RevokeAsync(snapshotId);
 
             return row is null
                 ? Result<InvoiceSnapshot?>.None()
@@ -251,19 +225,7 @@ namespace _0nline.Biller.DL.Services
             if (invoice.theInvoiceStatus != InvoiceStatus.Finalized)
                 return;
 
-            using var conn = Connection;
-
-            await conn.ExecuteAsync(
-                @"UPDATE ""Invoice"" SET ""InvoiceStatusID"" = @Issued
-                  WHERE ""ID"" = @Id AND ""TenantID"" = @TenantId
-                    AND ""InvoiceStatusID"" = @Finalized",
-                new
-                {
-                    Issued = InvoiceStatus.Issued,
-                    Finalized = InvoiceStatus.Finalized,
-                    Id = invoice.ID,
-                    TenantId = invoice.TenantID
-                });
+            await _queries.MarkIssuedAsync(invoice.ID, invoice.TenantID);
 
             invoice.theInvoiceStatus = InvoiceStatus.Issued;
         }

@@ -1,7 +1,8 @@
-using _0nline.Biller.DL.Contract.Enums;
+﻿using _0nline.Biller.DL.Contract.Enums;
 using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Queries;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Interfaces;
@@ -10,7 +11,6 @@ using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Interfaces;
 using _0nline.Shared.Location.Interfaces;
 using _0nline.Shared.Services;
-using Dapper;
 using System.Text.RegularExpressions;
 
 namespace _0nline.Biller.DL.Services
@@ -21,13 +21,17 @@ namespace _0nline.Biller.DL.Services
         private readonly ICompanyContactLinkService _companyContactLinkService;
         private readonly ICountryCatalog _countries;
 
+        private readonly ICompanyQueries _queries;
+
         public CompanyService(IDbContextProvider<BillerDbConfig> ctx, ISqlQueryProvider<Company> queryService, ITenantContext tenancyContext
-            , IFileStoreService fileStoreService, ICompanyContactLinkService companyContactLinkService, ICountryCatalog countries)
+            , IFileStoreService fileStoreService, ICompanyContactLinkService companyContactLinkService, ICountryCatalog countries
+            , ICompanyQueries queries)
             : base(ctx, queryService, tenancyContext)
         {
             _fileStoreService = fileStoreService;
             _companyContactLinkService = companyContactLinkService;
             _countries = countries;
+            _queries = queries;
         }
 
         public new Task<Result<Company[]>> GetAllAsync() => base.GetAllAsync();
@@ -115,76 +119,11 @@ namespace _0nline.Biller.DL.Services
         /// </summary>
         /// <remarks>
         /// This is a report-shaped read, not a table read: the tenant's own company is
-        /// excluded by business rule and the contact is part of the row. Keeping it on
-        /// the service rather than the generic store means the rule stays with the
-        /// entity it belongs to; a future report over another entity gets its own
-        /// method and query rather than a generic join engine nobody else needs yet.
+        /// excluded by business rule and the contact is part of the row. The statement
+        /// lives with the other company queries.
         /// </remarks>
         public async Task<Result<Company[]>> ListClientsAsync()
-        {
-            var company = Quoted("Company");
-            var contact = Quoted("Contact");
-            var tenant = Quoted("Tenant");
-
-            var sql = $@"
-                SELECT c.{Quoted("ID")}, c.{Quoted("TenantID")}, c.{Quoted("Name")},
-                       c.{Quoted("BillingContactID")}, c.{Quoted("Registration")},
-                       c.{Quoted("Address")}, c.{Quoted("AddressCity")}, c.{Quoted("AddressCode")},
-                       c.{Quoted("AddressCountry")}, c.{Quoted("Phone")}, c.{Quoted("LogoImageID")},
-                       c.{Quoted("Active")}, c.{Quoted("CountryCode")}, c.{Quoted("TaxNumber")},
-                       c.{Quoted("TaxSchemeID")},
-                       bc.{Quoted("ID")} AS {Quoted("ContactID")},
-                       bc.{Quoted("TenantID")} AS {Quoted("ContactTenantID")},
-                       bc.{Quoted("UserId")} AS {Quoted("ContactUserId")},
-                       bc.{Quoted("FirstName")} AS {Quoted("ContactFirstName")},
-                       bc.{Quoted("Surname")} AS {Quoted("ContactSurname")},
-                       bc.{Quoted("Email")} AS {Quoted("ContactEmail")},
-                       bc.{Quoted("CellPhone")} AS {Quoted("ContactCellPhone")}
-                FROM {company} c
-                LEFT JOIN {contact} bc
-                       ON bc.{Quoted("ID")} = c.{Quoted("BillingContactID")}
-                      AND bc.{Quoted("TenantID")} = c.{Quoted("TenantID")}
-                WHERE c.{Quoted("TenantID")} = @TenantId
-                  AND c.{Quoted("ID")} IS DISTINCT FROM
-                      (SELECT {Quoted("CompanyID")} FROM {tenant} WHERE {Quoted("ID")} = @TenantId)
-                ORDER BY c.{Quoted("Name")}";
-
-            using var conn = Connection;
-            var rows = await conn.QueryAsync<ClientRow>(sql, new { TenantId = _tenantContext.TenantId });
-
-            var clients = rows.Select(row => new Company
-            {
-                ID = row.ID,
-                TenantID = row.TenantID,
-                Name = row.Name,
-                BillingContactID = row.BillingContactID,
-                Registration = row.Registration,
-                Address = row.Address,
-                AddressCity = row.AddressCity,
-                AddressCode = row.AddressCode,
-                AddressCountry = row.AddressCountry,
-                Phone = row.Phone,
-                LogoImageID = row.LogoImageID,
-                Active = row.Active,
-                CountryCode = row.CountryCode,
-                TaxNumber = row.TaxNumber,
-                TaxSchemeID = row.TaxSchemeID,
-                BillingContact = row.ContactID is int contactId
-                    ? new Contact
-                    {
-                        ID = contactId,
-                        TenantID = row.ContactTenantID ?? row.TenantID,
-                        UserId = row.ContactUserId,
-                        FirstName = row.ContactFirstName,
-                        Surname = row.ContactSurname,
-                        Email = row.ContactEmail,
-                        CellPhone = row.ContactCellPhone
-                    }
-                    : null
-            }).ToArray();
-
-            return Result<Company[]>.Success(clients);
-        }
+            => Result<Company[]>.Success(await _queries.ListClientsAsync());
 
         /// <summary>
         /// A single company is returned with its linked contacts, so a detail view does
@@ -208,36 +147,6 @@ namespace _0nline.Biller.DL.Services
             }
 
             return company!;
-        }
-        /// <summary>
-        /// Flattened result of the client-list join. The contact columns are aliased
-        /// away from the company columns because both tables have ID/TenantID.
-        /// </summary>
-        private sealed class ClientRow
-        {
-            public int ID { get; set; }
-            public int TenantID { get; set; }
-            public string? Name { get; set; }
-            public int? BillingContactID { get; set; }
-            public string? Registration { get; set; }
-            public string? Address { get; set; }
-            public string? AddressCity { get; set; }
-            public string? AddressCode { get; set; }
-            public string? AddressCountry { get; set; }
-            public long? Phone { get; set; }
-            public int? LogoImageID { get; set; }
-            public bool? Active { get; set; }
-            public string? CountryCode { get; set; }
-            public string? TaxNumber { get; set; }
-            public short? TaxSchemeID { get; set; }
-
-            public int? ContactID { get; set; }
-            public int? ContactTenantID { get; set; }
-            public long? ContactUserId { get; set; }
-            public string? ContactFirstName { get; set; }
-            public string? ContactSurname { get; set; }
-            public string? ContactEmail { get; set; }
-            public long? ContactCellPhone { get; set; }
         }
     }
 }

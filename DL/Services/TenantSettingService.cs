@@ -1,7 +1,8 @@
-using _0nline.Biller.DL.Contract.Interfaces;
+﻿using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
 using _0nline.Biller.DL.Contract.Numbering;
+using _0nline.Biller.DL.Queries;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Auth.Contract;
 using _0nline.Shared.Contract;
@@ -12,7 +13,6 @@ using _0nline.Shared.Db.Contract.Interfaces;
 using _0nline.Shared.Location;
 using _0nline.Shared.Location.Interfaces;
 using _0nline.Shared.Location.Models;
-using Dapper;
 using Microsoft.Extensions.Options;
 
 namespace _0nline.Biller.DL.Services
@@ -31,6 +31,7 @@ namespace _0nline.Biller.DL.Services
         private readonly ICurrencyCatalog _currencies;
         private readonly TimeZoneCountryMap _timeZones;
         private readonly LocationOptions _location;
+        private readonly ITenantSettingQueries _queries;
 
         public TenantSettingService(
             IDbContextProvider<BillerDbConfig> ctx,
@@ -40,9 +41,11 @@ namespace _0nline.Biller.DL.Services
             ICountryCatalog countries,
             ICurrencyCatalog currencies,
             TimeZoneCountryMap timeZones,
-            IOptions<LocationOptions> location)
+            IOptions<LocationOptions> location,
+            ITenantSettingQueries queries)
             : base(ctx, queryService, new MutableTenantContext(tenancyContext))
         {
+            _queries = queries;
             _mutableContext = (MutableTenantContext)_tenantContext;
             _authService = authService;
             _countries = countries;
@@ -57,7 +60,7 @@ namespace _0nline.Biller.DL.Services
                 return Result<TenantSetting>.Failure(
                     ErrorCode.Unauthorized, "A tenantId claim is required.");
 
-            var existing = await ReadAsync(tenantId);
+            var existing = await _queries.GetForTenantAsync(tenantId);
             if (existing is not null)
                 return Result<TenantSetting>.Success(existing);
 
@@ -71,7 +74,7 @@ namespace _0nline.Biller.DL.Services
                 return Result<TenantSetting>.Failure(
                     ErrorCode.Invalid_Argument, "A tenant is required.");
 
-            var existing = await ReadAsync(tenantId);
+            var existing = await _queries.GetForTenantAsync(tenantId);
             if (existing is not null)
                 return Result<TenantSetting>.Success(existing);
 
@@ -104,7 +107,7 @@ namespace _0nline.Biller.DL.Services
                 _mutableContext.OverrideUserId = null;
             }
 
-            var raced = await ReadAsync(tenantId);
+            var raced = await _queries.GetForTenantAsync(tenantId);
             return raced is null
                 ? Result<TenantSetting>.Failure(
                     ErrorCode.ServerError, "The tenant settings could not be created.")
@@ -133,7 +136,7 @@ namespace _0nline.Biller.DL.Services
                 ? parsedFormat!.Text
                 : InvoiceNumberFormat.DefaultFormat;
 
-            var existing = await ReadAsync(tenantId);
+            var existing = await _queries.GetForTenantAsync(tenantId);
             if (existing is not null)
             {
                 ApplyValues(existing, currency, setting, numberFormat);
@@ -164,7 +167,7 @@ namespace _0nline.Biller.DL.Services
             catch (Exception ex) when (IsUniqueViolation(ex))
             {
                 // Another request created the row; re-read and update it.
-                var raced = await ReadAsync(tenantId);
+                var raced = await _queries.GetForTenantAsync(tenantId);
                 if (raced is null)
                     return Result<TenantSetting>.Failure(
                         ErrorCode.ServerError, "The tenant settings could not be saved.");
@@ -175,14 +178,6 @@ namespace _0nline.Biller.DL.Services
                     return Result<TenantSetting>.Success(raced);
                 return Result<TenantSetting>.Failure(updated.ErrorCode, updated.Errors);
             }
-        }
-
-        private async Task<TenantSetting?> ReadAsync(int tenantId)
-        {
-            using var conn = Connection;
-            return await conn.QueryFirstOrDefaultAsync<TenantSetting>(
-                $"SELECT * FROM {Quoted("TenantSetting")} WHERE {Quoted("TenantID")} = @TenantId",
-                new { TenantId = tenantId });
         }
 
         private static void ApplyValues(

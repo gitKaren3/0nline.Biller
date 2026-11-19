@@ -34,6 +34,12 @@ namespace _0nline.Biller.DL.Extensions
             services.AddScoped<IInvoiceQueries, InvoiceQueries>();
             services.AddScoped<IInvoiceNumberAllocator, InvoiceNumberAllocator>();
 
+            // The remaining app queries: statements the entity store cannot express.
+            services.AddScoped<IBankAccountQueries, BankAccountQueries>();
+            services.AddScoped<ICompanyQueries, CompanyQueries>();
+            services.AddScoped<ITenantSettingQueries, TenantSettingQueries>();
+            services.AddScoped<IInvoiceSnapshotQueries, InvoiceSnapshotQueries>();
+
         }
     }
 }

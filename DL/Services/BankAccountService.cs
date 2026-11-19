@@ -1,14 +1,13 @@
-using _0nline.Biller.DL.Contract.Interfaces;
+﻿using _0nline.Biller.DL.Contract.Interfaces;
 using _0nline.Biller.DL.Contract.Models;
 using _0nline.Biller.DL.Contract.Models.db;
+using _0nline.Biller.DL.Queries;
 using _0nline.Biller.DL.Services.Base;
 using _0nline.Shared.Contract;
 using _0nline.Shared.Contract.Interfaces;
 using _0nline.Shared.Contract.Interfaces.DL;
 using _0nline.Shared.Contract.Models;
 using _0nline.Shared.Db.Contract.Interfaces;
-using Dapper;
-using Npgsql;
 
 namespace _0nline.Biller.DL.Services
 {
@@ -19,11 +18,15 @@ namespace _0nline.Biller.DL.Services
     /// </summary>
     public class BankAccountService : BillerBaseService<BankAccount>, IBankAccountService, IDLReadableService<BankAccount>, IDLWritableService<BankAccount>
     {
+        private readonly IBankAccountQueries _queries;
+
         public BankAccountService(IDbContextProvider<BillerDbConfig> ctx
                                 , ISqlQueryProvider<BankAccount> queryService
-                                , ITenantContext tenancyContext)
+                                , ITenantContext tenancyContext
+                                , IBankAccountQueries queries)
             : base(ctx, queryService, tenancyContext)
         {
+            _queries = queries;
         }
 
         public new Task<Result<BankAccount[]>> GetAllAsync() => base.GetAllAsync();
@@ -41,7 +44,7 @@ namespace _0nline.Biller.DL.Services
 
             // Removing the default must not leave the tenant without one.
             if (deleted.Successful)
-                await EnsureDefaultAsync(RequireTenantId());
+                await _queries.EnsureDefaultAsync();
 
             return deleted;
         }
@@ -53,29 +56,27 @@ namespace _0nline.Biller.DL.Services
 
             Normalize(entity);
 
-            int tenantId = RequireTenantId();
-
             // Demote first: the partial unique index allows only one default,
             // and it is checked per statement.
             if (entity.IsDefault == true)
-                await ClearDefaultAsync(tenantId, excludeId: null);
+                await _queries.ClearDefaultAsync(excludeId: null);
 
             try
             {
                 var created = await base.CreateAsync(entity);
 
                 // The first account becomes the default even if the client sent false.
-                await EnsureDefaultAsync(tenantId);
+                await _queries.EnsureDefaultAsync();
 
                 // EnsureDefaultAsync writes straight to the database, so the entity
                 // still carries the stale flag. Return the persisted row instead.
                 return await FreshAsync(entity.ID, created);
             }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            catch (Exception ex) when (IsUniqueViolation(ex))
             {
                 // Only UX_BankAccount_Default can raise this: another tab promoted
                 // an account between the demote and the insert.
-                await EnsureDefaultAsync(tenantId);
+                await _queries.EnsureDefaultAsync();
 
                 return Result<BankAccount>.Failure(
                     ErrorCode.Conflict,
@@ -85,7 +86,7 @@ namespace _0nline.Biller.DL.Services
             {
                 // The demote above already ran; the tenant must not be left with
                 // no default just because the insert failed.
-                await EnsureDefaultAsync(tenantId);
+                await _queries.EnsureDefaultAsync();
                 throw;
             }
         }
@@ -103,16 +104,14 @@ namespace _0nline.Biller.DL.Services
 
             Normalize(entity);
 
-            int tenantId = RequireTenantId();
-
             if (entity.IsDefault == true)
-                await ClearDefaultAsync(tenantId, entity.ID);
+                await _queries.ClearDefaultAsync(entity.ID);
 
             try
             {
                 var updated = await base.UpdateAsync(entity);
 
-                await EnsureDefaultAsync(tenantId);
+                await _queries.EnsureDefaultAsync();
 
                 // Same stale-flag issue as create: return the persisted row.
                 return await FreshAsync(entity.ID, updated);
@@ -120,7 +119,7 @@ namespace _0nline.Biller.DL.Services
             catch
             {
                 // The demote above already ran; restore a default before failing.
-                await EnsureDefaultAsync(tenantId);
+                await _queries.EnsureDefaultAsync();
                 throw;
             }
         }
@@ -162,35 +161,5 @@ namespace _0nline.Biller.DL.Services
         private static string? NullIfBlank(string? value)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-        private async Task ClearDefaultAsync(int tenantId, int? excludeId)
-        {
-            using var conn = Connection;
-
-            await conn.ExecuteAsync(
-                @"UPDATE ""BankAccount"" SET ""IsDefault"" = FALSE
-                   WHERE ""TenantID"" = @TenantId
-                     AND ""IsDefault""
-                     AND (@ExcludeId::int IS NULL OR ""ID"" <> @ExcludeId)",
-                new { TenantId = tenantId, ExcludeId = excludeId });
-        }
-
-        /// <summary>
-        /// Promotes the first active account when the tenant has accounts but none
-        /// is marked default. A no-op otherwise, so it is safe after every write.
-        /// </summary>
-        private async Task EnsureDefaultAsync(int tenantId)
-        {
-            using var conn = Connection;
-
-            await conn.ExecuteAsync(
-                @"UPDATE ""BankAccount"" SET ""IsDefault"" = TRUE
-                   WHERE ""ID"" = (SELECT ""ID"" FROM ""BankAccount""
-                                    WHERE ""TenantID"" = @TenantId AND ""Active""
-                                    ORDER BY ""ID"" LIMIT 1)
-                     AND NOT EXISTS (SELECT 1 FROM ""BankAccount""
-                                      WHERE ""TenantID"" = @TenantId
-                                        AND ""Active"" AND ""IsDefault"")",
-                new { TenantId = tenantId });
-        }
     }
 }
